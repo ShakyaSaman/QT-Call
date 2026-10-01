@@ -285,8 +285,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Screen Sharing ---
     async function toggleScreenShare() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+            alert('Screen sharing is not supported by your current browser or device (e.g. mobile Safari/Android browsers). Please use a desktop browser like Chrome, Edge, or Firefox.');
+            return;
+        }
+
         if (!currentCall && !localStream) {
-            alert('Start a call before sharing screen.');
+            alert('Please start or join a call before sharing your screen.');
             return;
         }
 
@@ -294,9 +299,9 @@ document.addEventListener('DOMContentLoaded', () => {
             stopScreenShare();
         } else {
             try {
+                // Request screen video capture
                 screenStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: true,
-                    audio: true
+                    video: true
                 });
 
                 const screenVideoTrack = screenStream.getVideoTracks()[0];
@@ -319,6 +324,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
             } catch (err) {
                 console.error('Screen sharing canceled or failed:', err);
+                if (err.name !== 'NotAllowedError') {
+                    alert(`Screen share failed: ${err.message || 'Permission denied or secure HTTPS context required.'}`);
+                }
             }
         }
     }
