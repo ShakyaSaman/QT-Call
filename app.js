@@ -285,13 +285,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Screen Sharing ---
     async function toggleScreenShare() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-            alert('Screen sharing is not supported by your current browser or device (e.g. mobile Safari/Android browsers). Please use a desktop browser like Chrome, Edge, or Firefox.');
+        if (!currentCall && !localStream) {
+            alert('Please start or join a call before sharing your screen.');
             return;
         }
 
-        if (!currentCall && !localStream) {
-            alert('Please start or join a call before sharing your screen.');
+        if (!window.isSecureContext && window.location.protocol !== 'http:' && window.location.hostname !== 'localhost') {
+            alert('Screen sharing on Android/Mobile requires HTTPS (e.g. your GitHub Pages link). Please open the page over HTTPS.');
             return;
         }
 
@@ -299,9 +299,20 @@ document.addEventListener('DOMContentLoaded', () => {
             stopScreenShare();
         } else {
             try {
-                // Request screen video capture
-                screenStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: true
+                // Request screen capture (Supported on Android Chrome over HTTPS & Desktop browsers)
+                const displayMediaApi = (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) 
+                    ? navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices)
+                    : null;
+
+                if (!displayMediaApi) {
+                    alert('Screen sharing is unavailable in this browser context. Please ensure you are accessing via HTTPS (e.g. GitHub Pages link).');
+                    return;
+                }
+
+                screenStream = await displayMediaApi({
+                    video: {
+                        cursor: 'always'
+                    }
                 });
 
                 const screenVideoTrack = screenStream.getVideoTracks()[0];
@@ -323,9 +334,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 shareScreenBtn.classList.add('active');
                 shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
             } catch (err) {
-                console.error('Screen sharing canceled or failed:', err);
+                console.error('Screen sharing error:', err);
                 if (err.name !== 'NotAllowedError') {
-                    alert(`Screen share failed: ${err.message || 'Permission denied or secure HTTPS context required.'}`);
+                    alert(`Screen share failed: ${err.message || 'Permission denied.'}`);
                 }
             }
         }
