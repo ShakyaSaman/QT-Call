@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>P2P Connect - Video, Audio & Screen Share</title>
+
+    <!-- Standalone PeerJS & QRCode CDNs with Local Fallbacks -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script>if (typeof Peer === 'undefined') document.write('<script src="lib/peerjs.min.js"><\/script>');</script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>if (typeof QRCode === 'undefined') document.write('<script src="lib/qrcode.min.js"><\/script>');</script>
+
+    <style>
+/* CSS Stylesheet for P2P WebRTC Video/Audio/Screen Share App */
+:root {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-card: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --accent-color: #38bdf8;
+    --accent-hover: #0284c7;
+    --success-color: #22c55e;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --danger-hover: #dc2626;
+    --card-border: #334155;
+    --radius-lg: 16px;
+    --radius-md: 10px;
+    --radius-sm: 6px;
+    --shadow-main: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+}
+
+/* Header Styling */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--card-border);
+    z-index: 10;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-icon {
+    font-size: 1.6rem;
+}
+
+.logo h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Connection Status Badge */
+.status-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.status-disconnected .status-dot { background-color: var(--danger-color); }
+.status-connecting .status-dot { background-color: var(--warning-color); animation: pulse 1.2s infinite; }
+.status-connected .status-dot { background-color: var(--success-color); }
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+
+/* Screens */
+.screen {
+    display: none;
+    flex: 1;
+    position: relative;
+}
+
+.screen.active {
+    display: flex;
+}
+
+/* Lobby Screen */
+#lobbyScreen {
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.lobby-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: var(--shadow-main);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.lobby-card h2 {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+}
+
+.subtitle {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-top: -12px;
+}
+
+.input-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+input[type="text"] {
+    flex: 1;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--card-border);
+    color: var(--text-primary);
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input[type="text"]:focus {
+    border-color: var(--accent-color);
+}
+
+label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin: 8px 0;
+}
+
+.divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.divider span {
+    padding: 0 10px;
+}
+
+/* Buttons */
+.btn {
+    padding: 12px 20px;
+    border-radius: var(--radius-md);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-primary {
+    background-color: var(--accent-color);
+    color: #0f172a;
+}
+.btn-primary:hover { background-color: var(--accent-hover); color: #fff; }
+
+.btn-secondary {
+    background-color: var(--card-border);
+    color: var(--text-primary);
+}
+.btn-secondary:hover { background-color: #475569; }
+
+.btn-outline {
+    background-color: transparent;
+    border: 1px solid var(--card-border);
+    color: var(--text-primary);
+    width: 100%;
+}
+.btn-outline:hover { background-color: rgba(255, 255, 255, 0.05); border-color: var(--accent-color); }
+
+.btn-danger {
+    background-color: var(--danger-color);
+    color: white;
+}
+.btn-danger:hover { background-color: var(--danger-hover); }
+
+.btn-block { width: 100%; }
+
+.notice-box {
+    background-color: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* Call Screen Layout */
+#callScreen {
+    flex-direction: column;
+    background-color: #000;
+    overflow: hidden;
+}
+
+.video-grid {
+    flex: 1;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.video-wrapper {
+    position: relative;
+    background-color: #111;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Main Remote Video */
+.main-video {
+    width: 100%;
+    height: 100%;
+}
+
+.main-video video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+/* Floating Local Video */
+.local-video {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 200px;
+    height: 140px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    border: 2px solid var(--card-border);
+    z-index: 5;
+    transition: all 0.3s ease;
+}
+
+.local-video video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+}
+
+.video-overlay {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    color: #fff;
+    font-weight: 500;
+    pointer-events: none;
+}
+
+.video-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    position: absolute;
+}
+
+.video-placeholder .avatar-icon {
+    font-size: 2.5rem;
+}
+
+.hidden { display: none !important; }
+
+/* Controls Bar */
+.controls-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background-color: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--card-border);
+    z-index: 10;
+}
+
+.control-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--card-border);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.control-btn .icon { font-size: 1.3rem; }
+.control-btn .label { font-size: 0.65rem; font-weight: 600; display: none; }
+
+.control-btn:hover {
+    background-color: #334155;
+    transform: translateY(-2px);
+}
+
+.control-btn.active {
+    background-color: var(--bg-secondary);
+}
+
+.control-btn.muted, .control-btn.off {
+    background-color: rgba(239, 68, 68, 0.2);
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+}
+
+.control-btn.btn-danger {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    width: 60px;
+    height: 60px;
+    border-radius: 18px;
+}
+
+.control-btn.btn-danger:hover {
+    background-color: var(--danger-hover);
+}
+
+/* Modal Styling */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background-color: var(--bg-card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    width: 90%;
+    max-width: 380px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+    box-shadow: var(--shadow-main);
+}
+
+.modal-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 1.5rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.qr-container {
+    padding: 12px;
+    background-color: white;
+    border-radius: var(--radius-md);
+    margin: 8px 0;
+}
+
+.modal-id-display {
+    font-family: monospace;
+    font-size: 1rem;
+    background: var(--bg-primary);
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    width: 100%;
+    word-break: break-all;
+}
+
+@media (max-width: 640px) {
+    .app-header { padding: 10px 16px; }
+    .local-video { width: 120px; height: 90px; top: 12px; right: 12px; }
+    .controls-bar { gap: 10px; padding: 12px; }
+    .control-btn { width: 48px; height: 48px; }
+    .control-btn.btn-danger { width: 52px; height: 52px; }
+}
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <span class="logo-icon">📹</span>
+                <h1>P2P Call Connect</h1>
+            </div>
+            <div id="connectionStatus" class="status-badge status-disconnected">
+                <span class="status-dot"></span>
+                <span id="statusText">Disconnected</span>
+            </div>
+        </header>
+
+        <!-- Lobby / Join Screen -->
+        <main id="lobbyScreen" class="screen active">
+            <div class="lobby-card">
+                <h2>Start or Join a Call</h2>
+                <p class="subtitle">Connect directly peer-to-peer with video, audio, and screen sharing.</p>
+
+                <div class="my-id-container">
+                    <label for="myPeerId">Your ID:</label>
+                    <div class="input-group">
+                        <input type="text" id="myPeerId" readonly placeholder="Generating ID...">
+                        <button id="copyIdBtn" class="btn btn-secondary" title="Copy ID">📋 Copy</button>
+                    </div>
+                </div>
+
+                <div class="divider"><span>OR JOIN A PEER</span></div>
+
+                <div class="join-container">
+                    <label for="remotePeerId">Remote Peer ID:</label>
+                    <div class="input-group">
+                        <input type="text" id="remotePeerId" placeholder="Enter remote peer ID">
+                        <button id="connectBtn" class="btn btn-primary">Connect Call</button>
+                    </div>
+                </div>
+
+                <div class="qr-share-section">
+                    <button id="showQrBtn" class="btn btn-outline">📱 Share QR Code / Link</button>
+                </div>
+
+                <div id="browserNotice" class="notice-box">
+                    💡 <strong>Tip:</strong> Ensure both devices have an active internet connection to reach PeerJS signaling servers.
+                </div>
+            </div>
+        </main>
+
+        <!-- Call Screen -->
+        <main id="callScreen" class="screen">
+            <div class="video-grid">
+                <!-- Remote Video Container (Main) -->
+                <div class="video-wrapper main-video">
+                    <video id="remoteVideo" autoplay playsinline></video>
+                    <div class="video-overlay">
+                        <span id="remotePeerName">Remote User</span>
+                    </div>
+                    <div id="remotePlaceholder" class="video-placeholder">
+                        <div class="avatar-icon">👤</div>
+                        <p>Waiting for peer stream...</p>
+                    </div>
+                </div>
+
+                <!-- Local Video Container (Floating PiP) -->
+                <div class="video-wrapper local-video" id="localVideoWrapper">
+                    <video id="localVideo" autoplay playsinline muted></video>
+                    <div class="video-overlay">
+                        <span>You</span>
+                    </div>
+                    <div id="localPlaceholder" class="video-placeholder hidden">
+                        <div class="avatar-icon">📷</div>
+                        <p>Camera Off</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls Bar -->
+            <div class="controls-bar">
+                <button id="toggleMicBtn" class="control-btn active" title="Toggle Microphone">
+                    <span class="icon">🎙️</span>
+                    <span class="label">Mute</span>
+                </button>
+                
+                <button id="toggleCamBtn" class="control-btn active" title="Toggle Camera">
+                    <span class="icon">📹</span>
+                    <span class="label">Camera Off</span>
+                </button>
+
+                <button id="switchCamBtn" class="control-btn hidden" title="Switch Camera (Mobile)">
+                    <span class="icon">🔄</span>
+                    <span class="label">Flip</span>
+                </button>
+
+                <button id="shareScreenBtn" class="control-btn" title="Share Screen">
+                    <span class="icon">💻</span>
+                    <span class="label">Share Screen</span>
+                </button>
+
+                <button id="showCallInfoBtn" class="control-btn" title="Room Info / QR">
+                    <span class="icon">ℹ️</span>
+                    <span class="label">Info</span>
+                </button>
+
+                <button id="hangupBtn" class="control-btn btn-danger" title="End Call">
+                    <span class="icon">📞</span>
+                    <span class="label">Hang Up</span>
+                </button>
+            </div>
+        </main>
+
+        <!-- QR Code & Info Modal -->
+        <div id="qrModal" class="modal">
+            <div class="modal-content">
+                <span id="closeModalBtn" class="modal-close">&times;</span>
+                <h3>Share Call Link / QR Code</h3>
+                <p>Scan with phone camera or share ID to connect instantly.</p>
+                <div id="qrcode" class="qr-container"></div>
+                <div class="modal-id-display">
+                    <strong>ID:</strong> <span id="modalPeerIdText">--</span>
+                </div>
+                <button id="copyShareLinkBtn" class="btn btn-primary btn-block">📋 Copy Share Link</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inline Application Script -->
+    <script>
+document.addEventListener('DOMContentLoaded', () => {
+    const lobbyScreen = document.getElementById('lobbyScreen');
+    const callScreen = document.getElementById('callScreen');
+    
+    const myPeerIdInput = document.getElementById('myPeerId');
+    const remotePeerIdInput = document.getElementById('remotePeerId');
+    const copyIdBtn = document.getElementById('copyIdBtn');
+    const connectBtn = document.getElementById('connectBtn');
+    const showQrBtn = document.getElementById('showQrBtn');
+    
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const localPlaceholder = document.getElementById('localPlaceholder');
+    const remotePlaceholder = document.getElementById('remotePlaceholder');
+    
+    const toggleMicBtn = document.getElementById('toggleMicBtn');
+    const toggleCamBtn = document.getElementById('toggleCamBtn');
+    const switchCamBtn = document.getElementById('switchCamBtn');
+    const shareScreenBtn = document.getElementById('shareScreenBtn');
+    const showCallInfoBtn = document.getElementById('showCallInfoBtn');
+    const hangupBtn = document.getElementById('hangupBtn');
+    
+    const connectionStatus = document.getElementById('connectionStatus');
+    const statusText = document.getElementById('statusText');
+    
+    const qrModal = document.getElementById('qrModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const qrcodeContainer = document.getElementById('qrcode');
+    const modalPeerIdText = document.getElementById('modalPeerIdText');
+    const copyShareLinkBtn = document.getElementById('copyShareLinkBtn');
+
+    let peer = null;
+    let currentCall = null;
+    let localStream = null;
+    let screenStream = null;
+    let isMicMuted = false;
+    let isCamOff = false;
+    let isScreenSharing = false;
+    let currentFacingMode = 'user';
+    let qrcodeObj = null;
+
+    function generateShortId() {
+        return Math.random().toString(36).substring(2, 8);
+    }
+
+    function setStatus(state, text) {
+        if (connectionStatus && statusText) {
+            connectionStatus.className = `status-badge status-${state}`;
+            statusText.textContent = text;
+        }
+    }
+
+    function isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    if (isMobileDevice() && switchCamBtn) {
+        switchCamBtn.classList.remove('hidden');
+    }
+
+    function initPeer() {
+        const customId = generateShortId();
+        
+        if (myPeerIdInput) myPeerIdInput.value = customId;
+        if (modalPeerIdText) modalPeerIdText.textContent = customId;
+        setStatus('connecting', 'Connecting Server...');
+
+        if (typeof Peer === 'undefined') {
+            console.error('PeerJS library not loaded!');
+            setStatus('disconnected', 'PeerJS Missing');
+            alert('PeerJS library failed to load. Please check your internet connection.');
+            return;
+        }
+
+        try {
+            peer = new Peer(customId, {
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' }
+                    ]
+                },
+                debug: 1
+            });
+
+            peer.on('open', (id) => {
+                console.log('Peer connected to signaling server with ID:', id);
+                if (myPeerIdInput) myPeerIdInput.value = id;
+                if (modalPeerIdText) modalPeerIdText.textContent = id;
+                setStatus('disconnected', 'Ready');
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const connectId = urlParams.get('connect');
+                if (connectId && remotePeerIdInput) {
+                    remotePeerIdInput.value = connectId;
+                }
+            });
+
+            peer.on('call', async (call) => {
+                setStatus('connecting', 'Incoming Call...');
+                try {
+                    if (!localStream) {
+                        await startLocalStream();
+                    }
+                    call.answer(localStream);
+                    setupCallHandlers(call);
+                    showCallScreen();
+                } catch (err) {
+                    alert('Could not access camera/mic to answer call.');
+                }
+            });
+
+            peer.on('error', (err) => {
+                console.error('PeerJS Error:', err);
+                setStatus('disconnected', 'Server Error');
+                if (err.type === 'peer-unavailable') {
+                    alert('Could not find peer with that ID.');
+                }
+            });
+
+            peer.on('disconnected', () => {
+                setStatus('disconnected', 'Disconnected');
+            });
+        } catch (e) {
+            console.error('Error initializing Peer:', e);
+            setStatus('disconnected', 'Init Error');
+        }
+    }
+
+    function createFallbackStream() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 640;
+        canvas.height = 480;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = '28px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('📱 Mobile Local File Mode', canvas.width / 2, canvas.height / 2 - 15);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '18px sans-serif';
+        ctx.fillText('(Camera blocked by file:// URL)', canvas.width / 2, canvas.height / 2 + 20);
+        return canvas.captureStream(10);
+    }
+
+    async function startLocalStream(facingMode = 'user') {
+        try {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: true
+            };
+
+            localStream = await navigator.mediaDevices.getUserMedia(constraints);
+            localVideo.srcObject = localStream;
+            localPlaceholder.classList.add('hidden');
+            localVideo.classList.remove('hidden');
+
+            if (isMicMuted) localStream.getAudioTracks().forEach(t => t.enabled = false);
+            if (isCamOff) localStream.getVideoTracks().forEach(t => t.enabled = false);
+
+            return localStream;
+        } catch (err) {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                localVideo.classList.add('hidden');
+                localPlaceholder.classList.remove('hidden');
+                return localStream;
+            } catch (audioErr) {
+                console.warn('Using Canvas fallback stream:', audioErr);
+                localStream = createFallbackStream();
+                localVideo.classList.add('hidden');
+                localPlaceholder.classList.remove('hidden');
+                return localStream;
+            }
+        }
+    }
+
+    async function connectToPeer(remoteId) {
+        if (!remoteId) {
+            alert('Please enter a Remote Peer ID.');
+            return;
+        }
+        if (peer && remoteId === peer.id) {
+            alert('You cannot connect to your own ID!');
+            return;
+        }
+
+        setStatus('connecting', 'Connecting Call...');
+        try {
+            if (!localStream) {
+                try {
+                    await startLocalStream();
+                } catch (mediaErr) {
+                    console.error('Media stream error:', mediaErr);
+                    setStatus('disconnected', 'Camera/Mic Blocked');
+                    alert('Could not access Camera or Microphone. If on a mobile phone, please host on HTTPS or Netlify/GitHub Pages as mobile browsers block camera access on local file:// URLs.');
+                    return;
+                }
+            }
+
+            if (!peer || peer.disconnected) {
+                alert('Signaling connection is offline. Please check your internet connection and refresh.');
+                setStatus('disconnected', 'Offline');
+                return;
+            }
+
+            const call = peer.call(remoteId, localStream);
+            setupCallHandlers(call);
+            showCallScreen();
+        } catch (err) {
+            console.error('Error starting outgoing call:', err);
+            setStatus('disconnected', 'Call Failed');
+            alert(`Call failed: ${err.message || 'Could not connect to target peer ID.'}`);
+        }
+    }
+
+    function setupCallHandlers(call) {
+        currentCall = call;
+
+        call.on('stream', (remoteStream) => {
+            remoteVideo.srcObject = remoteStream;
+            remotePlaceholder.classList.add('hidden');
+            remoteVideo.classList.remove('hidden');
+            setStatus('connected', 'Connected');
+        });
+
+        call.on('close', endCall);
+        call.on('error', endCall);
+    }
+
+    async function toggleScreenShare() {
+        if (!currentCall && !localStream) {
+            alert('Start a call before sharing screen.');
+            return;
+        }
+
+        if (isScreenSharing) {
+            stopScreenShare();
+        } else {
+            try {
+                screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                const screenVideoTrack = screenStream.getVideoTracks()[0];
+                screenVideoTrack.onended = stopScreenShare;
+
+                if (currentCall && currentCall.peerConnection) {
+                    const senders = currentCall.peerConnection.getSenders();
+                    const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                    if (videoSender) videoSender.replaceTrack(screenVideoTrack);
+                }
+
+                localVideo.srcObject = screenStream;
+                isScreenSharing = true;
+                shareScreenBtn.classList.add('active');
+                shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    }
+
+    function stopScreenShare() {
+        if (screenStream) {
+            screenStream.getTracks().forEach(t => t.stop());
+            screenStream = null;
+        }
+
+        isScreenSharing = false;
+        shareScreenBtn.classList.remove('active');
+        shareScreenBtn.querySelector('.label').textContent = 'Share Screen';
+
+        if (localStream) {
+            const camTrack = localStream.getVideoTracks()[0];
+            localVideo.srcObject = localStream;
+            if (currentCall && currentCall.peerConnection && camTrack) {
+                const senders = currentCall.peerConnection.getSenders();
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                if (videoSender) videoSender.replaceTrack(camTrack);
+            }
+        }
+    }
+
+    async function flipCamera() {
+        currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+        await startLocalStream(currentFacingMode);
+        if (currentCall && currentCall.peerConnection && localStream) {
+            const newTrack = localStream.getVideoTracks()[0];
+            const senders = currentCall.peerConnection.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender && newTrack) videoSender.replaceTrack(newTrack);
+        }
+    }
+
+    function showCallScreen() {
+        lobbyScreen.classList.remove('active');
+        callScreen.classList.add('active');
+    }
+
+    function showLobbyScreen() {
+        callScreen.classList.remove('active');
+        lobbyScreen.classList.add('active');
+    }
+
+    function endCall() {
+        if (currentCall) { currentCall.close(); currentCall = null; }
+        if (isScreenSharing) stopScreenShare();
+        if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+        remoteVideo.srcObject = null;
+        localVideo.srcObject = null;
+        remotePlaceholder.classList.remove('hidden');
+        localPlaceholder.classList.remove('hidden');
+        setStatus('disconnected', 'Call Ended');
+        showLobbyScreen();
+    }
+
+    function generateShareUrl() {
+        const baseUrl = window.location.href.split('?')[0];
+        return `${baseUrl}?connect=${peer ? peer.id : myPeerIdInput.value}`;
+    }
+
+    function openQrModal() {
+        const idToShare = peer ? peer.id : myPeerIdInput.value;
+        if (!idToShare) return;
+        const shareUrl = generateShareUrl();
+        modalPeerIdText.textContent = idToShare;
+        qrcodeContainer.innerHTML = '';
+        if (typeof QRCode !== 'undefined') {
+            qrcodeObj = new QRCode(qrcodeContainer, {
+                text: shareUrl, width: 180, height: 180, colorDark: "#0f172a", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+        qrModal.classList.add('active');
+    }
+
+    function closeQrModal() { qrModal.classList.remove('active'); }
+
+    if (connectBtn) connectBtn.addEventListener('click', () => connectToPeer(remotePeerIdInput.value.trim()));
+    if (copyIdBtn) copyIdBtn.addEventListener('click', () => {
+        if (myPeerIdInput.value) {
+            navigator.clipboard.writeText(myPeerIdInput.value);
+            copyIdBtn.textContent = '✓ Copied';
+            setTimeout(() => copyIdBtn.textContent = '📋 Copy', 2000);
+        }
+    });
+    if (showQrBtn) showQrBtn.addEventListener('click', openQrModal);
+    if (showCallInfoBtn) showCallInfoBtn.addEventListener('click', openQrModal);
+    if (closeModalBtn) closeModalBtn.addEventListener('click', closeQrModal);
+    if (qrModal) qrModal.addEventListener('click', (e) => { if (e.target === qrModal) closeQrModal(); });
+    if (copyShareLinkBtn) copyShareLinkBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(generateShareUrl());
+        copyShareLinkBtn.textContent = '✓ Link Copied!';
+        setTimeout(() => copyShareLinkBtn.textContent = '📋 Copy Share Link', 2000);
+    });
+
+    if (toggleMicBtn) toggleMicBtn.addEventListener('click', () => {
+        if (localStream) {
+            isMicMuted = !isMicMuted;
+            localStream.getAudioTracks().forEach(t => t.enabled = !isMicMuted);
+            toggleMicBtn.classList.toggle('muted', isMicMuted);
+            toggleMicBtn.querySelector('.icon').textContent = isMicMuted ? '🔇' : '🎙️';
+        }
+    });
+
+    if (toggleCamBtn) toggleCamBtn.addEventListener('click', () => {
+        if (localStream) {
+            isCamOff = !isCamOff;
+            localStream.getVideoTracks().forEach(t => t.enabled = !isCamOff);
+            toggleCamBtn.classList.toggle('off', isCamOff);
+            toggleCamBtn.querySelector('.icon').textContent = isCamOff ? '📷' : '📹';
+            localPlaceholder.classList.toggle('hidden', !isCamOff);
+            localVideo.classList.toggle('hidden', isCamOff);
+        }
+    });
+
+    if (switchCamBtn) switchCamBtn.addEventListener('click', flipCamera);
+    if (shareScreenBtn) shareScreenBtn.addEventListener('click', toggleScreenShare);
+    if (hangupBtn) hangupBtn.addEventListener('click', endCall);
+
+    initPeer();
+});
+    </script>
+</body>
+</html>

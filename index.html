@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>P2P Connect - Video, Audio & Screen Share</title>
+
+    <!-- Stylesheet with local & inline fallback -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Vendor Scripts (Local with CDN Fallback) -->
+    <script src="lib/peerjs.min.js"></script>
+    <script>if (typeof Peer === 'undefined') document.write('<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"><\/script>');</script>
+    
+    <script src="lib/qrcode.min.js"></script>
+    <script>if (typeof QRCode === 'undefined') document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>');</script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <span class="logo-icon">📹</span>
+                <h1>P2P Call Connect</h1>
+            </div>
+            <div id="connectionStatus" class="status-badge status-disconnected">
+                <span class="status-dot"></span>
+                <span id="statusText">Disconnected</span>
+            </div>
+        </header>
+
+        <!-- Lobby / Join Screen -->
+        <main id="lobbyScreen" class="screen active">
+            <div class="lobby-card">
+                <h2>Start or Join a Call</h2>
+                <p class="subtitle">Connect directly peer-to-peer with video, audio, and screen sharing.</p>
+
+                <div class="my-id-container">
+                    <label for="myPeerId">Your ID:</label>
+                    <div class="input-group">
+                        <input type="text" id="myPeerId" readonly placeholder="Generating ID...">
+                        <button id="copyIdBtn" class="btn btn-secondary" title="Copy ID">📋 Copy</button>
+                    </div>
+                </div>
+
+                <div class="divider"><span>OR JOIN A PEER</span></div>
+
+                <div class="join-container">
+                    <label for="remotePeerId">Remote Peer ID:</label>
+                    <div class="input-group">
+                        <input type="text" id="remotePeerId" placeholder="Enter remote peer ID">
+                        <button id="connectBtn" class="btn btn-primary">Connect Call</button>
+                    </div>
+                </div>
+
+                <div class="qr-share-section">
+                    <button id="showQrBtn" class="btn btn-outline">📱 Share QR Code / Link</button>
+                </div>
+
+                <div id="browserNotice" class="notice-box">
+                    💡 <strong>Tip for mobile users:</strong> Ensure both devices are connected to the internet to reach PeerJS signaling. Camera/mic permissions require HTTPS or a local web server (e.g. <code>python3 -m http.server</code>) when opened on mobile browsers.
+                </div>
+            </div>
+        </main>
+
+        <!-- Call Screen -->
+        <main id="callScreen" class="screen">
+            <div class="video-grid">
+                <!-- Remote Video Container (Main) -->
+                <div class="video-wrapper main-video">
+                    <video id="remoteVideo" autoplay playsinline></video>
+                    <div class="video-overlay">
+                        <span id="remotePeerName">Remote User</span>
+                    </div>
+                    <div id="remotePlaceholder" class="video-placeholder">
+                        <div class="avatar-icon">👤</div>
+                        <p>Waiting for peer stream...</p>
+                    </div>
+                </div>
+
+                <!-- Local Video Container (Floating PiP) -->
+                <div class="video-wrapper local-video" id="localVideoWrapper">
+                    <video id="localVideo" autoplay playsinline muted></video>
+                    <div class="video-overlay">
+                        <span>You</span>
+                    </div>
+                    <div id="localPlaceholder" class="video-placeholder hidden">
+                        <div class="avatar-icon">📷</div>
+                        <p>Camera Off</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls Bar -->
+            <div class="controls-bar">
+                <button id="toggleMicBtn" class="control-btn active" title="Toggle Microphone">
+                    <span class="icon">🎙️</span>
+                    <span class="label">Mute</span>
+                </button>
+                
+                <button id="toggleCamBtn" class="control-btn active" title="Toggle Camera">
+                    <span class="icon">📹</span>
+                    <span class="label">Camera Off</span>
+                </button>
+
+                <button id="switchCamBtn" class="control-btn hidden" title="Switch Camera (Mobile)">
+                    <span class="icon">🔄</span>
+                    <span class="label">Flip</span>
+                </button>
+
+                <button id="shareScreenBtn" class="control-btn" title="Share Screen">
+                    <span class="icon">💻</span>
+                    <span class="label">Share Screen</span>
+                </button>
+
+                <button id="showCallInfoBtn" class="control-btn" title="Room Info / QR">
+                    <span class="icon">ℹ️</span>
+                    <span class="label">Info</span>
+                </button>
+
+                <button id="hangupBtn" class="control-btn btn-danger" title="End Call">
+                    <span class="icon">📞</span>
+                    <span class="label">Hang Up</span>
+                </button>
+            </div>
+        </main>
+
+        <!-- QR Code & Info Modal -->
+        <div id="qrModal" class="modal">
+            <div class="modal-content">
+                <span id="closeModalBtn" class="modal-close">&times;</span>
+                <h3>Share Call Link / QR Code</h3>
+                <p>Scan with phone camera or share ID to connect instantly.</p>
+                <div id="qrcode" class="qr-container"></div>
+                <div class="modal-id-display">
+                    <strong>ID:</strong> <span id="modalPeerIdText">--</span>
+                </div>
+                <button id="copyShareLinkBtn" class="btn btn-primary btn-block">📋 Copy Share Link</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
