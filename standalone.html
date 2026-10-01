@@ -840,49 +840,87 @@ document.addEventListener('DOMContentLoaded', () => {
         call.on('error', endCall);
     }
 
+    function shareImageStream(imageFile) {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width || 1280;
+            canvas.height = img.height || 720;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            screenStream = canvas.captureStream(10);
+            const screenVideoTrack = screenStream.getVideoTracks()[0];
+
+            if (currentCall && currentCall.peerConnection) {
+                const senders = currentCall.peerConnection.getSenders();
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                if (videoSender) {
+                    videoSender.replaceTrack(screenVideoTrack);
+                }
+            }
+
+            localVideo.srcObject = screenStream;
+            isScreenSharing = true;
+            shareScreenBtn.classList.add('active');
+            shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
+        };
+        img.src = URL.createObjectURL(imageFile);
+    }
+
     async function toggleScreenShare() {
         if (!currentCall && !localStream) {
-            alert('Please start or join a call before sharing your screen.');
+            alert('Please start or join a call before sharing.');
             return;
         }
 
         if (isScreenSharing) {
             stopScreenShare();
         } else {
-            try {
-                const displayMediaApi = (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) 
-                    ? navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices)
-                    : null;
+            const displayMediaApi = (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) 
+                ? navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices)
+                : null;
 
-                if (!displayMediaApi) {
-                    alert('Screen sharing on Android/Mobile requires accessing the site over HTTPS (e.g. GitHub Pages link). Please open your GitHub Pages link on Chrome.');
-                    return;
-                }
-
+            if (displayMediaApi) {
                 try {
-                    screenStream = await displayMediaApi({ video: true });
-                } catch (cErr) {
-                    screenStream = await displayMediaApi(true);
-                }
+                    try {
+                        screenStream = await displayMediaApi({ video: true });
+                    } catch (cErr) {
+                        screenStream = await displayMediaApi(true);
+                    }
 
-                const screenVideoTrack = screenStream.getVideoTracks()[0];
-                screenVideoTrack.onended = stopScreenShare;
+                    const screenVideoTrack = screenStream.getVideoTracks()[0];
+                    screenVideoTrack.onended = stopScreenShare;
 
-                if (currentCall && currentCall.peerConnection) {
-                    const senders = currentCall.peerConnection.getSenders();
-                    const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                    if (videoSender) videoSender.replaceTrack(screenVideoTrack);
-                }
+                    if (currentCall && currentCall.peerConnection) {
+                        const senders = currentCall.peerConnection.getSenders();
+                        const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                        if (videoSender) videoSender.replaceTrack(screenVideoTrack);
+                    }
 
-                localVideo.srcObject = screenStream;
-                isScreenSharing = true;
-                shareScreenBtn.classList.add('active');
-                shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
-            } catch (err) {
-                console.error(err);
-                if (err.name !== 'NotAllowedError') {
-                    alert(`Screen share error: ${err.name || 'Error'} - ${err.message || 'Permission denied.'}`);
+                    localVideo.srcObject = screenStream;
+                    isScreenSharing = true;
+                    shareScreenBtn.classList.add('active');
+                    shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
+                    return;
+                } catch (err) {
+                    console.warn(err);
+                    if (err.name === 'NotAllowedError') return;
                 }
+            }
+
+            const confirmPhotoShare = confirm('Native screen recording is blocked by your mobile operating system.\n\nWould you like to select a Screenshot or Photo/Document to share live on call?');
+            if (confirmPhotoShare) {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'image/*';
+                fileInput.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        shareImageStream(file);
+                    }
+                };
+                fileInput.click();
             }
         }
     }

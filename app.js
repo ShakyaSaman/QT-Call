@@ -283,66 +283,96 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Mobile Image Stream Sharing (Fallback for Phones without getDisplayMedia) ---
+    function shareImageStream(imageFile) {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width || 1280;
+            canvas.height = img.height || 720;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            screenStream = canvas.captureStream(10);
+            const screenVideoTrack = screenStream.getVideoTracks()[0];
+
+            if (currentCall && currentCall.peerConnection) {
+                const senders = currentCall.peerConnection.getSenders();
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                if (videoSender) {
+                    videoSender.replaceTrack(screenVideoTrack);
+                }
+            }
+
+            localVideo.srcObject = screenStream;
+            isScreenSharing = true;
+            shareScreenBtn.classList.add('active');
+            shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
+        };
+        img.src = URL.createObjectURL(imageFile);
+    }
+
     // --- Screen Sharing ---
     async function toggleScreenShare() {
         if (!currentCall && !localStream) {
-            alert('Please start or join a call before sharing your screen.');
-            return;
-        }
-
-        if (!window.isSecureContext && window.location.protocol !== 'http:' && window.location.hostname !== 'localhost') {
-            alert('Screen sharing on Android/Mobile requires HTTPS (e.g. your GitHub Pages link). Please open the page over HTTPS.');
+            alert('Please start or join a call before sharing.');
             return;
         }
 
         if (isScreenSharing) {
             stopScreenShare();
         } else {
-            try {
-                // Request screen capture (Supported on Android Chrome over HTTPS & Desktop browsers)
-                const displayMediaApi = (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) 
-                    ? navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices)
-                    : null;
+            const displayMediaApi = (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) 
+                ? navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices)
+                : null;
 
-                if (!displayMediaApi) {
-                    alert('Screen sharing is not supported by your current mobile browser. Please open the link over HTTPS in Chrome on your phone or PC.');
-                    return;
-                }
-
-                // Request screen capture with simple mobile-compatible constraints
+            // If native screen capture is supported (Desktop & compatible Android Chrome)
+            if (displayMediaApi) {
                 try {
-                    screenStream = await displayMediaApi({ video: true });
-                } catch (constraintErr) {
-                    console.warn('Primary screen capture constraints failed, trying basic fallback:', constraintErr);
-                    screenStream = await displayMediaApi(true);
-                }
-
-                const screenVideoTrack = screenStream.getVideoTracks()[0];
-                
-                screenVideoTrack.onended = () => {
-                    stopScreenShare();
-                };
-
-                if (currentCall && currentCall.peerConnection) {
-                    const senders = currentCall.peerConnection.getSenders();
-                    const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                    if (videoSender) {
-                        videoSender.replaceTrack(screenVideoTrack);
+                    try {
+                        screenStream = await displayMediaApi({ video: true });
+                    } catch (constraintErr) {
+                        screenStream = await displayMediaApi(true);
                     }
-                }
 
-                localVideo.srcObject = screenStream;
-                isScreenSharing = true;
-                shareScreenBtn.classList.add('active');
-                shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
-            } catch (err) {
-                console.error('Screen sharing error:', err);
-                if (err.name === 'NotAllowedError') {
-                    // User tapped cancel on Android prompt
-                    console.log('User canceled screen share prompt');
-                } else {
-                    alert(`Screen share error: ${err.name || 'Error'} - ${err.message || 'Permission denied or browser not supported.'}`);
+                    const screenVideoTrack = screenStream.getVideoTracks()[0];
+                    screenVideoTrack.onended = () => {
+                        stopScreenShare();
+                    };
+
+                    if (currentCall && currentCall.peerConnection) {
+                        const senders = currentCall.peerConnection.getSenders();
+                        const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                        if (videoSender) {
+                            videoSender.replaceTrack(screenVideoTrack);
+                        }
+                    }
+
+                    localVideo.srcObject = screenStream;
+                    isScreenSharing = true;
+                    shareScreenBtn.classList.add('active');
+                    shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
+                    return;
+                } catch (err) {
+                    console.warn('Native screen share failed or canceled, offering mobile photo share:', err);
+                    if (err.name === 'NotAllowedError') return;
                 }
+            }
+
+            // Fallback for Mobile Phones (iPhones, In-App Browsers, & unsupported mobile contexts):
+            // Allow user to select any Screenshot, Document, or Photo to share live over WebRTC!
+            const confirmPhotoShare = confirm('Native screen recording is blocked by your mobile operating system (iOS / Mobile Browser).\n\nWould you like to select a Screenshot or Photo/Document to share live on call?');
+            if (confirmPhotoShare) {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'image/*';
+                fileInput.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        shareImageStream(file);
+                    }
+                };
+                fileInput.click();
             }
         }
     }
