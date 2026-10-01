@@ -305,15 +305,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     : null;
 
                 if (!displayMediaApi) {
-                    alert('Screen sharing is unavailable in this browser context. Please ensure you are accessing via HTTPS (e.g. GitHub Pages link).');
+                    alert('Screen sharing is not supported by your current mobile browser. Please open the link over HTTPS in Chrome on your phone or PC.');
                     return;
                 }
 
-                screenStream = await displayMediaApi({
-                    video: {
-                        cursor: 'always'
-                    }
-                });
+                // Request screen capture with simple mobile-compatible constraints
+                try {
+                    screenStream = await displayMediaApi({ video: true });
+                } catch (constraintErr) {
+                    console.warn('Primary screen capture constraints failed, trying basic fallback:', constraintErr);
+                    screenStream = await displayMediaApi(true);
+                }
 
                 const screenVideoTrack = screenStream.getVideoTracks()[0];
                 
@@ -335,8 +337,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
             } catch (err) {
                 console.error('Screen sharing error:', err);
-                if (err.name !== 'NotAllowedError') {
-                    alert(`Screen share failed: ${err.message || 'Permission denied.'}`);
+                if (err.name === 'NotAllowedError') {
+                    // User tapped cancel on Android prompt
+                    console.log('User canceled screen share prompt');
+                } else {
+                    alert(`Screen share error: ${err.name || 'Error'} - ${err.message || 'Permission denied or browser not supported.'}`);
                 }
             }
         }

@@ -859,7 +859,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                screenStream = await displayMediaApi({ video: true });
+                try {
+                    screenStream = await displayMediaApi({ video: true });
+                } catch (cErr) {
+                    screenStream = await displayMediaApi(true);
+                }
+
                 const screenVideoTrack = screenStream.getVideoTracks()[0];
                 screenVideoTrack.onended = stopScreenShare;
 
@@ -876,7 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) {
                 console.error(err);
                 if (err.name !== 'NotAllowedError') {
-                    alert(`Screen share failed: ${err.message || 'Permission denied.'}`);
+                    alert(`Screen share error: ${err.name || 'Error'} - ${err.message || 'Permission denied.'}`);
                 }
             }
         }
