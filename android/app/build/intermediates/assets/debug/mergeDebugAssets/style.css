@@ -1,0 +1,483 @@
+/* CSS Stylesheet for P2P WebRTC Video/Audio/Screen Share App */
+:root {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-card: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --accent-color: #38bdf8;
+    --accent-hover: #0284c7;
+    --success-color: #22c55e;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --danger-hover: #dc2626;
+    --card-border: #334155;
+    --radius-lg: 16px;
+    --radius-md: 10px;
+    --radius-sm: 6px;
+    --shadow-main: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+}
+
+/* Header Styling */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--card-border);
+    z-index: 10;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-icon {
+    font-size: 1.6rem;
+}
+
+.logo h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Connection Status Badge */
+.status-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.status-disconnected .status-dot { background-color: var(--danger-color); }
+.status-connecting .status-dot { background-color: var(--warning-color); animation: pulse 1.2s infinite; }
+.status-connected .status-dot { background-color: var(--success-color); }
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+
+/* Screens */
+.screen {
+    display: none;
+    flex: 1;
+    position: relative;
+}
+
+.screen.active {
+    display: flex;
+}
+
+/* Lobby Screen */
+#lobbyScreen {
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.lobby-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: var(--shadow-main);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.lobby-card h2 {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+}
+
+.subtitle {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-top: -12px;
+}
+
+.input-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+input[type="text"] {
+    flex: 1;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--card-border);
+    color: var(--text-primary);
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input[type="text"]:focus {
+    border-color: var(--accent-color);
+}
+
+label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin: 8px 0;
+}
+
+.divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.divider span {
+    padding: 0 10px;
+}
+
+/* Buttons */
+.btn {
+    padding: 12px 20px;
+    border-radius: var(--radius-md);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-primary {
+    background-color: var(--accent-color);
+    color: #0f172a;
+}
+.btn-primary:hover { background-color: var(--accent-hover); color: #fff; }
+
+.btn-secondary {
+    background-color: var(--card-border);
+    color: var(--text-primary);
+}
+.btn-secondary:hover { background-color: #475569; }
+
+.btn-outline {
+    background-color: transparent;
+    border: 1px solid var(--card-border);
+    color: var(--text-primary);
+    width: 100%;
+}
+.btn-outline:hover { background-color: rgba(255, 255, 255, 0.05); border-color: var(--accent-color); }
+
+.btn-danger {
+    background-color: var(--danger-color);
+    color: white;
+}
+.btn-danger:hover { background-color: var(--danger-hover); }
+
+.btn-block { width: 100%; }
+
+.notice-box {
+    background-color: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* Call Screen Layout */
+#callScreen {
+    flex-direction: column;
+    background-color: #000;
+    overflow: hidden;
+}
+
+.video-grid {
+    flex: 1;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.video-wrapper {
+    position: relative;
+    background-color: #111;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Main Remote Video */
+.main-video {
+    width: 100%;
+    height: 100%;
+}
+
+.main-video video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+/* Floating Local Video */
+.local-video {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 200px;
+    height: 140px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    border: 2px solid var(--card-border);
+    z-index: 5;
+    transition: all 0.3s ease;
+}
+
+.local-video video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* Mirror view for local camera */
+}
+
+.video-overlay {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    color: #fff;
+    font-weight: 500;
+    pointer-events: none;
+}
+
+.video-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    position: absolute;
+}
+
+.video-placeholder .avatar-icon {
+    font-size: 2.5rem;
+}
+
+.hidden { display: none !important; }
+
+/* Controls Bar */
+.controls-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background-color: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--card-border);
+    z-index: 10;
+}
+
+.control-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--card-border);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.control-btn .icon { font-size: 1.3rem; }
+.control-btn .label { font-size: 0.65rem; font-weight: 600; display: none; }
+
+.control-btn:hover {
+    background-color: #334155;
+    transform: translateY(-2px);
+}
+
+.control-btn.active {
+    background-color: var(--bg-secondary);
+}
+
+.control-btn.muted, .control-btn.off {
+    background-color: rgba(239, 68, 68, 0.2);
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+}
+
+.control-btn.btn-danger {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    width: 60px;
+    height: 60px;
+    border-radius: 18px;
+}
+
+.control-btn.btn-danger:hover {
+    background-color: var(--danger-hover);
+}
+
+/* Modal Styling */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background-color: var(--bg-card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    width: 90%;
+    max-width: 380px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+    box-shadow: var(--shadow-main);
+}
+
+.modal-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 1.5rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.qr-container {
+    padding: 12px;
+    background-color: white;
+    border-radius: var(--radius-md);
+    margin: 8px 0;
+}
+
+.modal-id-display {
+    font-family: monospace;
+    font-size: 1rem;
+    background: var(--bg-primary);
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    width: 100%;
+    word-break: break-all;
+}
+
+/* Responsive Rules for Mobile */
+@media (max-width: 640px) {
+    .app-header {
+        padding: 10px 16px;
+    }
+    
+    .local-video {
+        width: 120px;
+        height: 90px;
+        top: 12px;
+        right: 12px;
+    }
+    
+    .controls-bar {
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .control-btn {
+        width: 48px;
+        height: 48px;
+    }
+
+    .control-btn.btn-danger {
+        width: 52px;
+        height: 52px;
+    }
+}

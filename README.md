@@ -41,7 +41,23 @@ A lightweight, serverless real-time web application for connecting two devices v
 - `lib/qrcode.min.js`: Local QR Code generation library.
 - `DOCUMENTATION.md`: Full technical description of technologies used, rationale, and architecture.
 
+## 📱 Android Application (APK)
+
+To build and run the standalone native Android application:
+
+1. **Build the APK**:
+   ```bash
+   cd android
+   ./gradlew assembleDebug
+   ```
+2. **Locate the Output APK**:
+   - The compiled APK is created at `android/app/build/outputs/apk/debug/app-debug.apk`.
+3. **Install on Android Device**:
+   - Transfer `app-debug.apk` to your phone or install via ADB: `adb install android/app/build/outputs/apk/debug/app-debug.apk`.
+   - Web assets (`index.html`, `style.css`, `app.js`, `lib/`) are automatically bundled and served securely offline via `WebViewAssetLoader` (`https://appassets.androidplatform.net/assets/index.html`).
+
 ---
 
 ## ℹ️ Mobile Browser Notes
-For mobile devices (iOS Safari / Android Chrome) to access camera and microphone permissions, open the file using a simple static web server (such as Python `python3 -m http.server 8000`, VS Code Live Server, or GitHub Pages).
+For standard mobile web browsers (iOS Safari / Android Chrome) outside the native APK, open the application using a simple static web server (such as Python `python3 -m http.server 8000`, VS Code Live Server, or GitHub Pages) to satisfy secure context (`https://` or `localhost`) requirements for camera and microphone access.
+

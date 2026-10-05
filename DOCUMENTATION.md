@@ -1,7 +1,7 @@
 # Technical Documentation: P2P Video, Audio & Screen Sharing Web Application
 
 ## Overview
-This web application enables direct peer-to-peer (P2P) real-time audio calls, video calls, and screen sharing between two devices (such as a laptop and a mobile smartphone) without requiring custom backend server deployment.
+This application enables direct peer-to-peer (P2P) real-time audio calls, video calls, and screen sharing between devices (such as laptops and Android smartphones) without requiring custom backend media server deployment. It includes both a Web client and a native Android application wrapper.
 
 ---
 
@@ -18,6 +18,7 @@ This web application enables direct peer-to-peer (P2P) real-time audio calls, vi
 | **MediaStreams API (`getUserMedia`)** | Captures camera feed and microphone audio from the user's hardware. | Standard browser API for real-time video/audio access across modern Android, iOS, Windows, and macOS browsers. |
 | **Screen Capture API (`getDisplayMedia`)** | Captures monitor, browser tab, or application window for screen sharing. | Enables full desktop/tab sharing in real-time. Dynamically replaces camera stream in active WebRTC peer connection. |
 | **QRCode.js (`lib/qrcode.min.js`)** | Generates dynamic QR codes in the browser for peer ID and connection link sharing. | Allows rapid connection pairing by scanning a QR code with a smartphone camera without manual typing. |
+| **Android WebView & `WebViewAssetLoader`** | Hosts and renders the web app locally inside the native Android APK wrapper (`MainActivity.java`). | Serves bundled web files from `https://appassets.androidplatform.net/assets/index.html`, providing a secure HTTPS origin for WebRTC and camera permissions offline. |
 
 ---
 
@@ -29,10 +30,13 @@ This web application enables direct peer-to-peer (P2P) real-time audio calls, vi
 ├── style.css         # Modern responsive dark-theme CSS layout
 ├── app.js            # Core WebRTC connection & media management script
 ├── DOCUMENTATION.md  # Comprehensive technical architecture document (this file)
-├── README.md         # User guide for running and sharing the application
-└── lib/
-    ├── peerjs.min.js # Standalone PeerJS WebRTC wrapper library
-    └── qrcode.min.js # Standalone QR Code generation library
+├── README.md         # User guide for running, building, and sharing the application
+├── lib/
+│   ├── peerjs.min.js # Standalone PeerJS WebRTC wrapper library
+│   └── qrcode.min.js # Standalone QR Code generation library
+└── android/          # Native Android application module
+    ├── app/build.gradle # Android app Gradle build configuration & copyWebAssets task
+    └── app/src/main/java/com/callqt/app/MainActivity.java # WebView host with WebRTC permission handling
 ```
 
 ### File Purposes
@@ -44,7 +48,7 @@ This web application enables direct peer-to-peer (P2P) real-time audio calls, vi
    - Loads standalone scripts from `lib/` to allow completely self-contained file distribution.
 
 2. **`style.css`**:
-   - Uses CSS CSS custom variables for consistent dark mode themes.
+   - Uses CSS custom variables for consistent dark mode themes.
    - Provides responsive breakpoints (`@media (max-width: 640px)`) ensuring smooth UX on mobile phones.
    - Mirrored local video display (`transform: scaleX(-1)`) matching natural user camera expectations.
 
@@ -54,25 +58,49 @@ This web application enables direct peer-to-peer (P2P) real-time audio calls, vi
    - Dynamically manages track substitution using `RTCRtpSender.replaceTrack()` when toggling between video camera feed and screen capture (`getDisplayMedia`).
    - Implements mobile front/rear camera toggling (`facingMode: 'user'` vs `'environment'`).
 
+4. **`android/app/src/main/java/com/callqt/app/MainActivity.java`**:
+   - Configures `WebView` settings (JavaScript enabled, DOM storage, media playback gesture bypass).
+   - Serves local web assets securely using `WebViewAssetLoader`.
+   - Prompts for runtime Android camera/microphone permissions and auto-grants WebRTC permission requests in `WebChromeClient.onPermissionRequest`.
+
 ---
 
 ## 3. How Non-Hosted P2P Signaling Works
 
 When files are not hosted on a dedicated server:
-1. **Peer 1** opens `index.html`. PeerJS contacts the free public PeerJS cloud broker (`0.peerjs.com`) via WebSockets to obtain a temporary unique **Peer ID**.
-2. **Peer 2** opens `index.html` on their phone or PC and receives their own **Peer ID**.
+1. **Peer 1** opens `index.html` (or the Android app). PeerJS contacts the free public PeerJS cloud broker (`0.peerjs.com`) via WebSockets to obtain a temporary unique **Peer ID**.
+2. **Peer 2** opens `index.html` (or the Android app) on their phone or PC and receives their own **Peer ID**.
 3. **Signaling Exchange**: Peer 2 enters Peer 1's ID (or scans the QR code). The public signaling server routes the SDP offer/answer packets.
 4. **Direct Media Flow**: Once signaling is complete, the video/audio streams are routed directly peer-to-peer between Peer 1 and Peer 2 using WebRTC encrypted SRTP channels.
 
 ---
 
-## 4. Mobile Browser & Camera Permission Considerations
+## 4. Native Android Application & WebView Integration
+
+### Automated Assets Syncing
+The Gradle build file (`android/app/build.gradle`) defines a `copyWebAssets` task:
+```groovy
+task copyWebAssets(type: Copy) {
+    from "${project.rootDir}/.."
+    into 'src/main/assets'
+    include 'index.html', 'style.css', 'app.js', 'lib/**'
+}
+
+preBuild.dependsOn copyWebAssets
+```
+This guarantees that whenever `./gradlew assembleDebug` or `gradle assembleDebug` is run, the latest web files are automatically bundled directly into the APK assets.
+
+### Secure Local Asset Origin
+Using `WebViewAssetLoader`, assets are served under `https://appassets.androidplatform.net/assets/index.html`. This ensures that modern browser APIs like WebRTC (`getUserMedia`) treat the web view as a secure context (`https://`) rather than restricting access under raw `file://` URLs.
+
+---
+
+## 5. Mobile Browser & Camera Permission Considerations
 
 > [!IMPORTANT]
 > **Mobile Camera/Mic Permissions Security Requirement:**
-> Modern mobile browsers (iOS Safari, Android Chrome) enforce strict security policies for media access (`getUserMedia`):
-> - `file://` protocol or HTTP over non-localhost may block camera/mic access on mobile devices.
-> - **Recommended Usage for Mobile:**
->   1. Open the folder via a local server (e.g. `npx serve`, Python `python3 -m http.server 8080`, VS Code Live Server).
->   2. Or host the static files on free static hosts like GitHub Pages, Cloudflare Pages, Netlify, or Vercel.
->   3. Alternatively, for local network testing, serve over local IP with HTTPS or test via Chrome desktop.
+> Modern mobile web browsers enforce strict security policies for media access (`getUserMedia`):
+> - `file://` protocol or HTTP over non-localhost may block camera/mic access on mobile web browsers.
+> - **Native Android App (APK):** Solves this restriction completely by serving assets over `https://appassets.androidplatform.net/` via `WebViewAssetLoader` and handling Android system permission prompts natively.
+> - **Web Browsers:** Host the static files on free static hosts like GitHub Pages, Cloudflare Pages, Netlify, or Vercel, or serve via a local network server (`python3 -m http.server 8080`).
+
