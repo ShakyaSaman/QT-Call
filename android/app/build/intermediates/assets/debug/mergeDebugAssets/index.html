@@ -57,6 +57,13 @@
                     <button id="showQrBtn" class="btn btn-outline">📱 Share QR Code / Link</button>
                 </div>
 
+                <div id="batteryWarningBox" class="notice-box warning-box hidden" style="background: rgba(234, 179, 8, 0.15); border: 1px solid #eab308; color: #fef08a; padding: 12px; border-radius: 8px; margin-top: 15px;">
+                    ⚠️ <strong>Battery Restriction Warning:</strong> Android battery optimization can block foreground screen sharing services.
+                    <div style="margin-top: 8px;">
+                        <button id="fixBatteryBtn" class="btn btn-secondary" style="font-size: 0.85rem; padding: 6px 12px;">🔋 Set Battery to Unrestricted</button>
+                    </div>
+                </div>
+
                 <div id="browserNotice" class="notice-box">
                     💡 <strong>Tip for mobile users:</strong> Ensure both devices are connected to the internet to reach PeerJS signaling. Camera/mic permissions require HTTPS or a local web server (e.g. <code>python3 -m http.server</code>) when opened on mobile browsers.
                 </div>

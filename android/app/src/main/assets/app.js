@@ -33,6 +33,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const qrcodeContainer = document.getElementById('qrcode');
     const modalPeerIdText = document.getElementById('modalPeerIdText');
     const copyShareLinkBtn = document.getElementById('copyShareLinkBtn');
+    const batteryWarningBox = document.getElementById('batteryWarningBox');
+    const fixBatteryBtn = document.getElementById('fixBatteryBtn');
+
+    if (window.AndroidNative) {
+        if (window.AndroidNative.isBatteryOptimizationIgnored && !window.AndroidNative.isBatteryOptimizationIgnored()) {
+            if (batteryWarningBox) batteryWarningBox.classList.remove('hidden');
+        }
+        if (fixBatteryBtn && window.AndroidNative.openBatteryOptimizationSettings) {
+            fixBatteryBtn.addEventListener('click', () => {
+                window.AndroidNative.openBatteryOptimizationSettings();
+            });
+        }
+    }
 
     // --- State Variables ---
     let peer = null;
@@ -389,12 +402,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (displayMediaApi) {
                 try {
                     try {
-                        screenStream = await displayMediaApi({ video: true });
+                        screenStream = await displayMediaApi({ video: true, audio: true });
                     } catch (constraintErr) {
                         screenStream = await displayMediaApi(true);
                     }
 
                     const screenVideoTrack = screenStream.getVideoTracks()[0];
+                    const screenAudioTrack = screenStream.getAudioTracks()[0];
+
                     screenVideoTrack.onended = () => {
                         stopScreenShare();
                     };
@@ -402,8 +417,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (currentCall && currentCall.peerConnection) {
                         const senders = currentCall.peerConnection.getSenders();
                         const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                        if (videoSender) {
+                        if (videoSender && screenVideoTrack) {
                             videoSender.replaceTrack(screenVideoTrack);
+                        }
+                        if (screenAudioTrack) {
+                            const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+                            if (audioSender) {
+                                audioSender.replaceTrack(screenAudioTrack);
+                            }
                         }
                     }
 
@@ -451,13 +472,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (localStream) {
             const camTrack = localStream.getVideoTracks()[0];
+            const micTrack = localStream.getAudioTracks()[0];
             localVideo.srcObject = localStream;
             
-            if (currentCall && currentCall.peerConnection && camTrack) {
+            if (currentCall && currentCall.peerConnection) {
                 const senders = currentCall.peerConnection.getSenders();
                 const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                if (videoSender) {
+                if (videoSender && camTrack) {
                     videoSender.replaceTrack(camTrack);
+                }
+                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+                if (audioSender && micTrack) {
+                    audioSender.replaceTrack(micTrack);
                 }
             }
         }

@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:2:1-39:12
-INJECTED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:2:1-39:12
-INJECTED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:2:1-39:12
-INJECTED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:2:1-39:12
+ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:2:1-40:12
+INJECTED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:2:1-40:12
+INJECTED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:2:1-40:12
+INJECTED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:2:1-40:12
 MERGED from [com.google.android.material:material:1.12.0] /root/.gradle/caches/8.14.3/transforms/d63e87678b54531a3660c7f0154451af/transformed/material-1.12.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.appcompat:appcompat-resources:1.7.0] /root/.gradle/caches/8.14.3/transforms/84089e598b82cf1c9968a041d2bf7f5e/transformed/jetified-appcompat-resources-1.7.0/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] /root/.gradle/caches/8.14.3/transforms/49a15ad64a6f8f801585bdb60e936a02/transformed/constraintlayout-2.0.1/AndroidManifest.xml:2:1-11:12
@@ -88,9 +88,13 @@ uses-permission#android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION
 ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:11:5-94
 	android:name
 		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:11:22-91
+uses-permission#android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:12:5-95
+	android:name
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:12:22-92
 application
-ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:13:5-37:19
-INJECTED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:13:5-37:19
+ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:14:5-38:19
+INJECTED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:14:5-38:19
 MERGED from [com.google.android.material:material:1.12.0] /root/.gradle/caches/8.14.3/transforms/d63e87678b54531a3660c7f0154451af/transformed/material-1.12.0/AndroidManifest.xml:22:5-20
 MERGED from [com.google.android.material:material:1.12.0] /root/.gradle/caches/8.14.3/transforms/d63e87678b54531a3660c7f0154451af/transformed/material-1.12.0/AndroidManifest.xml:22:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] /root/.gradle/caches/8.14.3/transforms/49a15ad64a6f8f801585bdb60e936a02/transformed/constraintlayout-2.0.1/AndroidManifest.xml:9:5-20
@@ -112,47 +116,47 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /root/.gradle/caches/8.14.3
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.13.0] /root/.gradle/caches/8.14.3/transforms/88b06a6a384138261651acd6d2138fd7/transformed/core-1.13.0/AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:18:9-35
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:19:9-35
 	android:label
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:16:9-32
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:17:9-32
 	android:roundIcon
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:17:9-50
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:18:9-50
 	android:icon
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:15:9-45
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:16:9-45
 	android:allowBackup
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:14:9-35
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:15:9-35
 	android:theme
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:19:9-59
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:20:9-59
 	android:usesCleartextTraffic
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:20:9-44
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:21:9-44
 service#com.callqt.app.ScreenCaptureService
-ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:22:9-26:63
+ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:23:9-27:63
 	android:enabled
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:24:13-35
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:25:13-35
 	android:exported
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:25:13-37
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:26:13-37
 	android:foregroundServiceType
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:26:13-60
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:27:13-60
 	android:name
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:23:13-49
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:24:13-49
 activity#com.callqt.app.MainActivity
-ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:28:9-36:20
+ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:29:9-37:20
 	android:exported
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:31:13-36
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:32:13-36
 	android:configChanges
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:30:13-74
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:31:13-74
 	android:name
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:29:13-41
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:30:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:32:13-35:29
+ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:33:13-36:29
 action#android.intent.action.MAIN
-ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:33:17-69
+ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:34:17-69
 	android:name
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:33:25-66
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:34:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:34:17-77
+ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:35:17-77
 	android:name
-		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:34:27-74
+		ADDED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml:35:27-74
 uses-sdk
 INJECTED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /workspace/call-qt/android/app/src/main/AndroidManifest.xml
