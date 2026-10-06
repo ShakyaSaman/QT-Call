@@ -17,6 +17,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.webkit.JavascriptInterface;
@@ -159,6 +161,38 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void stopScreenShare() {
             runOnUiThread(() -> stopScreenCapture());
+        }
+
+        @JavascriptInterface
+        public boolean isBatteryOptimizationIgnored() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null) {
+                    return pm.isIgnoringBatteryOptimizations(getPackageName());
+                }
+            }
+            return true;
+        }
+
+        @JavascriptInterface
+        public void openBatteryOptimizationSettings() {
+            runOnUiThread(() -> {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        Intent intent = new Intent();
+                        intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                    }
+                } catch (Exception e) {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                        startActivity(intent);
+                    } catch (Exception ex) {
+                        Toast.makeText(MainActivity.this, "Please disable Battery Restrictions for Call QT in Android Settings.", Toast.LENGTH_LONG).show();
+                    }
+                }
+            });
         }
 
         @JavascriptInterface
