@@ -90,6 +90,10 @@ preBuild.dependsOn copyWebAssets
 ```
 This guarantees that whenever `./gradlew assembleDebug` or `gradle assembleDebug` is run, the latest web files are automatically bundled directly into the APK assets.
 
+### Output APK Path
+When built with `gradle assembleDebug` (or `./gradlew assembleDebug`), the compiled debug APK is created at:
+- `android/app/build/outputs/apk/debug/app-debug.apk`
+
 ### Secure Local Asset Origin
 Using `WebViewAssetLoader`, assets are served under `https://appassets.androidplatform.net/assets/index.html`. This ensures that modern browser APIs like WebRTC (`getUserMedia`) treat the web view as a secure context (`https://`) rather than restricting access under raw `file://` URLs.
 
