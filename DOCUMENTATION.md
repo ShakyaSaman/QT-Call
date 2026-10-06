@@ -90,6 +90,11 @@ preBuild.dependsOn copyWebAssets
 ```
 This guarantees that whenever `./gradlew assembleDebug` or `gradle assembleDebug` is run, the latest web files are automatically bundled directly into the APK assets.
 
+### Native Android Screen Capture Bridge
+The Android native app (`MainActivity.java`) includes a `MediaProjection` native bridge (`window.AndroidNative.startScreenShare()`). When running inside the native APK:
+- Screen capture uses native Android system permissions (`createScreenCaptureIntent`).
+- Frames are captured via a `VirtualDisplay` + `ImageReader` pipeline and streamed into `app.js` canvas (`window.onNativeScreenFrame`), replacing the active WebRTC video track seamlessy without relying on browser `getDisplayMedia` support.
+
 ### Output APK Path
 When built with `gradle assembleDebug` (or `./gradlew assembleDebug`), the compiled debug APK is created at:
 - `android/app/build/outputs/apk/debug/app-debug.apk`
