@@ -312,6 +312,59 @@ document.addEventListener('DOMContentLoaded', () => {
         img.src = URL.createObjectURL(imageFile);
     }
 
+    // --- Native Android Screen Share Handlers ---
+    let nativeScreenCanvas = null;
+    let nativeScreenCtx = null;
+    let nativeScreenImage = null;
+
+    window.onNativeScreenShareStarted = () => {
+        if (!nativeScreenCanvas) {
+            nativeScreenCanvas = document.createElement('canvas');
+            nativeScreenCanvas.width = 1280;
+            nativeScreenCanvas.height = 720;
+            nativeScreenCtx = nativeScreenCanvas.getContext('2d');
+            nativeScreenImage = new Image();
+        }
+
+        screenStream = nativeScreenCanvas.captureStream(15);
+        const screenVideoTrack = screenStream.getVideoTracks()[0];
+
+        if (currentCall && currentCall.peerConnection) {
+            const senders = currentCall.peerConnection.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+                videoSender.replaceTrack(screenVideoTrack);
+            }
+        }
+
+        localVideo.srcObject = screenStream;
+        isScreenSharing = true;
+        shareScreenBtn.classList.add('active');
+        shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
+    };
+
+    window.onNativeScreenFrame = (dataUrl) => {
+        if (!isScreenSharing || !nativeScreenCtx) return;
+        nativeScreenImage.onload = () => {
+            if (nativeScreenCanvas.width !== nativeScreenImage.width) {
+                nativeScreenCanvas.width = nativeScreenImage.width;
+                nativeScreenCanvas.height = nativeScreenImage.height;
+            }
+            nativeScreenCtx.drawImage(nativeScreenImage, 0, 0);
+        };
+        nativeScreenImage.src = dataUrl;
+    };
+
+    window.onNativeScreenShareStopped = () => {
+        stopScreenShare();
+    };
+
+    window.onNativeScreenShareError = (errorMsg) => {
+        console.warn('Native Screen Share Error:', errorMsg);
+        alert(errorMsg || 'Screen capture permission was denied.');
+        stopScreenShare();
+    };
+
     // --- Screen Sharing ---
     async function toggleScreenShare() {
         if (!currentCall && !localStream) {
@@ -322,6 +375,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isScreenSharing) {
             stopScreenShare();
         } else {
+            // Check for Native Android Interface first
+            if (window.AndroidNative && window.AndroidNative.startScreenShare) {
+                window.AndroidNative.startScreenShare();
+                return;
+            }
+
             const displayMediaApi = (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) 
                 ? navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices)
                 : null;
@@ -360,8 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Fallback for Mobile Phones (iPhones, In-App Browsers, & unsupported mobile contexts):
-            // Allow user to select any Screenshot, Document, or Photo to share live over WebRTC!
-            const confirmPhotoShare = confirm('Native screen recording is blocked by your mobile operating system (iOS / Mobile Browser).\n\nWould you like to select a Screenshot or Photo/Document to share live on call?');
+            const confirmPhotoShare = confirm('Native screen recording is blocked by your mobile browser.\n\nWould you like to select a Screenshot or Photo/Document to share live on call?');
             if (confirmPhotoShare) {
                 const fileInput = document.createElement('input');
                 fileInput.type = 'file';
@@ -378,6 +436,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function stopScreenShare() {
+        if (window.AndroidNative && window.AndroidNative.stopScreenShare && isScreenSharing) {
+            window.AndroidNative.stopScreenShare();
+        }
+
         if (screenStream) {
             screenStream.getTracks().forEach(t => t.stop());
             screenStream = null;
