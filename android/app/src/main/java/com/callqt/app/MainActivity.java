@@ -13,6 +13,7 @@ import android.media.ImageReader;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -275,6 +276,13 @@ public class MainActivity extends AppCompatActivity {
         }
         stopBackgroundThread();
 
+        try {
+            Intent serviceIntent = new Intent(this, ScreenCaptureService.class);
+            stopService(serviceIntent);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         if (webView != null) {
             webView.evaluateJavascript("window.onNativeScreenShareStopped && window.onNativeScreenShareStopped();", null);
         }
@@ -332,6 +340,13 @@ public class MainActivity extends AppCompatActivity {
         } else if (requestCode == SCREEN_CAPTURE_REQ_CODE) {
             if (resultCode == RESULT_OK && data != null) {
                 try {
+                    Intent serviceIntent = new Intent(this, ScreenCaptureService.class);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent);
+                    } else {
+                        startService(serviceIntent);
+                    }
+
                     mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data);
                     if (mediaProjection != null) {
                         startScreenCapture();
