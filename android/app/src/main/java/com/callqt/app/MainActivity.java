@@ -188,6 +188,14 @@ public class MainActivity extends AppCompatActivity {
 
             startBackgroundThread();
 
+            mediaProjection.registerCallback(new MediaProjection.Callback() {
+                @Override
+                public void onStop() {
+                    super.onStop();
+                    runOnUiThread(() -> stopScreenCapture());
+                }
+            }, backgroundHandler);
+
             isCapturingScreen = true;
 
             imageReader.setOnImageAvailableListener(reader -> {
