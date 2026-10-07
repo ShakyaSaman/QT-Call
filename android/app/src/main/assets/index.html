@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>P2P Connect - Video, Audio & Screen Share</title>
+    <title>QT-Call - P2P Video, Audio & Screen Share</title>
+    <meta name="description" content="Peer-to-peer WebRTC video, audio, and screen sharing application with QR code pairing and mobile support.">
+    <meta property="og:title" content="QT-Call - P2P Video, Audio & Screen Share">
+    <meta property="og:description" content="Peer-to-peer WebRTC video, audio, and screen sharing application with QR code pairing and mobile support.">
 
     <!-- Stylesheet with local & inline fallback -->
     <link rel="stylesheet" href="style.css">
@@ -28,6 +31,15 @@
                 <span id="statusText">Disconnected</span>
             </div>
         </header>
+
+        <!-- Persistent Screen Share Banner with Quick Stop Option -->
+        <div id="screenShareBanner" class="screen-share-banner hidden">
+            <div class="banner-content">
+                <span class="live-pulse-dot"></span>
+                <span class="banner-text">You are sharing your screen</span>
+                <button id="bannerStopShareBtn" class="btn btn-danger btn-sm" title="Stop Screen Share">⏹ Stop Sharing</button>
+            </div>
+        </div>
 
         <!-- Lobby / Join Screen -->
         <main id="lobbyScreen" class="screen active">
@@ -144,6 +156,11 @@
                 </div>
                 <button id="copyShareLinkBtn" class="btn btn-primary btn-block">📋 Copy Share Link</button>
             </div>
+        </div>
+
+        <!-- Toast Notification Element -->
+        <div id="toastNotification" class="toast-notification hidden" style="position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1e293b; color: #f8fafc; border: 1px solid #3b82f6; border-radius: 8px; padding: 12px 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 9999; max-width: 90%; font-size: 14px; text-align: center; transition: opacity 0.3s ease;">
+            <span id="toastMessage"></span>
         </div>
     </div>
 

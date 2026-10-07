@@ -8,6 +8,9 @@ import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
 import android.media.Image;
 import android.media.ImageReader;
 import android.media.projection.MediaProjection;
@@ -43,6 +46,12 @@ import java.nio.ByteBuffer;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static MainActivity sInstance;
+
+    public static MainActivity getInstance() {
+        return sInstance;
+    }
+
     private static final int PERMISSION_REQ_CODE = 101;
     private static final int FILE_CHOOSER_REQ_CODE = 102;
     private static final int SCREEN_CAPTURE_REQ_CODE = 103;
@@ -59,9 +68,13 @@ public class MainActivity extends AppCompatActivity {
     private boolean isCapturingScreen = false;
     private long lastFrameTime = 0;
 
+    private AudioManager audioManager;
+    private AudioFocusRequest audioFocusRequest;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        sInstance = this;
 
         webView = new WebView(this);
         setContentView(webView);
@@ -69,9 +82,39 @@ public class MainActivity extends AppCompatActivity {
         mediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
         requestPermissionsIfNecessary();
+        setupAudioMode();
         setupWebView();
 
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
+    }
+
+    private void setupAudioMode() {
+        try {
+            audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                audioManager.setSpeakerphoneOn(true);
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    AudioAttributes playbackAttributes = new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build();
+                    audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                            .setAudioAttributes(playbackAttributes)
+                            .setAcceptsDelayedFocusGain(true)
+                            .setOnAudioFocusChangeListener(focusChange -> {
+                                // Keep communication audio mode alive when external media like YouTube plays
+                            })
+                            .build();
+                    audioManager.requestAudioFocus(audioFocusRequest);
+                } else {
+                    audioManager.requestAudioFocus(focusChange -> {}, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void requestPermissionsIfNecessary() {
@@ -302,7 +345,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void stopScreenCapture() {
+    public void stopScreenCapture() {
         isCapturingScreen = false;
         if (virtualDisplay != null) {
             virtualDisplay.release();
@@ -414,8 +457,31 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        // Do NOT pause WebView during screen share/call, ensure timers continue
+        if (webView != null) {
+            webView.resumeTimers();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) {
+            webView.resumeTimers();
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         stopScreenCapture();
+        if (sInstance == this) {
+            sInstance = null;
+        }
+        if (audioManager != null && audioFocusRequest != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioManager.abandonAudioFocusRequest(audioFocusRequest);
+        }
         super.onDestroy();
     }
 }

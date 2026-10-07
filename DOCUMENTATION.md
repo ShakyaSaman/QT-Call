@@ -123,21 +123,44 @@ This exposes methods to JavaScript under `window.AndroidNative`:
 
 ---
 
-## 4. Native Screen Sharing & System Audio Capture
+## 4. Screen Sharing Architecture & Simultaneous Voice/Media Audio
 
-### 1. Native Android Screen Recording Bridge
-When screen sharing is started inside the Android APK:
-1. `app.js` calls `window.AndroidNative.startScreenShare()`.
-2. `MainActivity.java` launches a `ScreenCaptureService` foreground service (`FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION`).
-3. Android prompts the system screen capture dialog (`createScreenCaptureIntent`).
-4. Upon user approval, a `VirtualDisplay` captures screen frames into an `ImageReader`.
-5. Captured frames are encoded as Base64 JPEG data URLs and passed to `window.onNativeScreenFrame(dataUrl)` in `app.js`.
-6. `app.js` draws the incoming frames onto a hidden HTML5 canvas and calls `canvas.captureStream(15)`, dynamically swapping the WebRTC video track via `RTCRtpSender.replaceTrack()`.
+### 1. Dual-Channel Audio Mixing (Microphone Voice + Screen / YouTube Audio)
+Previously, standard screen sharing replaced the WebRTC audio sender with only the screen audio track, which caused the speaker's microphone voice to be cut off completely. In addition, playing YouTube audio on mobile devices silenced the background call.
 
-### 2. Desktop & Browser System Audio Sharing
-When running in desktop browsers:
-- `app.js` calls `navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })`.
-- When the user selects a tab or application window with audio, both the screen video track and system audio track (`screenAudioTrack`) are captured and routed over WebRTC (`audioSender.replaceTrack(screenAudioTrack)`), allowing remote peers to hear audio playing from videos or applications on the shared screen.
+To resolve this, the app implements a multi-tier audio mixing and prioritization architecture:
+
+* **Web Audio API (`mixMicrophoneAndScreenAudio`)**:
+  - When screen audio (`screenAudioTrack`) is present alongside the user's microphone (`micTrack`), both are routed into a dedicated `AudioContext`.
+  - An `AudioStreamSource` is generated for each input and combined into a `MediaStreamAudioDestinationNode`.
+  - The mixed output track is attached to the WebRTC `audioSender`.
+  - **Result**: The remote peer clearly hears **both the speaker's microphone voice AND the shared screen/YouTube audio simultaneously** with independent gain control.
+  - Audio constraints configure `noiseSuppression: false` to ensure background media music/audio is not misidentified and filtered out as ambient noise.
+
+* **Android VoIP Audio Mode (`AudioManager.MODE_IN_COMMUNICATION`)**:
+  - `MainActivity.java` initializes the Android audio manager in `MODE_IN_COMMUNICATION` with `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` and speakerphone routing.
+  - This informs the Android OS that the app is an active telephone/VoIP voice communication channel.
+  - When the user leaves Call QT to open YouTube or other apps, Android **does not pause Call QT's audio capture**. Instead, YouTube media audio plays through device output while the microphone continues capturing the user's voice uninterrupted.
+
+* **Foreground Service with Microphone Type (`FOREGROUND_SERVICE_MICROPHONE`)**:
+  - In Android 11+ and Android 14+ (targetSdk 35), the OS automatically mutes background apps from accessing the microphone unless an active foreground service explicitly declares the microphone type.
+  - `ScreenCaptureService.java` specifies both `FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION` and `FOREGROUND_SERVICE_TYPE_MICROPHONE`.
+  - A `PowerManager.PARTIAL_WAKE_LOCK` prevents Android Doze from suspending background WebRTC packets when switching between apps.
+  - In `MainActivity.java`, `onPause()` ensures `webView.resumeTimers()` is called so the background WebRTC engine continues processing without being throttled.
+
+### 2. Multi-Surface Screen Share Controls (Stopping Screen Share)
+Users have instant access to turn off screen sharing from any context or app:
+
+1. **Persistent Floating Status Banner (`#screenShareBanner`)**:
+   - A high-visibility pill (`position: fixed; top: 70px; z-index: 1000`) displays at the top of the viewport with a live pulsing red recording dot and an instant **⏹ Stop Sharing** button.
+2. **In-Call Controls Bar Highlight**:
+   - The bottom `shareScreenBtn` dynamically transforms into a glowing red button with a stop icon (`⏹️`), titled **"Stop Sharing"**.
+3. **Android Notification Quick-Action**:
+   - `ScreenCaptureService.java` adds an ongoing Android status bar notification with:
+     - An instant **"Stop Sharing"** action button (`ACTION_STOP_CAPTURE`): allows the user to stop screen sharing directly from the notification shade while remaining inside YouTube or any other app.
+     - A tap-to-return `PendingIntent`: launches `MainActivity` with `FLAG_ACTIVITY_SINGLE_TOP` to bring the user directly back to the active call screen.
+4. **Native Browser Banner Integration**:
+   - Automatically listens to `screenVideoTrack.onended` when users click the native browser "Stop sharing" bar in Chrome, Edge, or Safari, restoring the camera feed and clean microphone audio track immediately.
 
 ---
 

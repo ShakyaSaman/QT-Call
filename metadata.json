@@ -1,0 +1,8 @@
+{
+  "name": "QT-Call - P2P Video, Audio & Screen Share",
+  "description": "Peer-to-peer WebRTC video, audio, and screen sharing application with QR code pairing and mobile support.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

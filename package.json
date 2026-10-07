@@ -1,0 +1,14 @@
+{
+  "name": "qt-call",
+  "version": "1.0.0",
+  "description": "P2P Connect - Video, Audio & Screen Share Web App",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "node -e \"console.log('Build successful')\""
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
