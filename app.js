@@ -216,11 +216,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 debug: 1
             });
 
+            let reconnectTimer = null;
+            let heartbeatInterval = null;
+
+            function startPeerHeartbeat() {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = setInterval(() => {
+                    if (peer && !peer.destroyed) {
+                        if (peer.disconnected) {
+                            console.log('Peer disconnected from signaling server, attempting reconnect...');
+                            peer.reconnect();
+                        } else if (peer.socket && peer.socket._socket && peer.socket._socket.readyState === WebSocket.OPEN) {
+                            try {
+                                peer.socket._socket.send(JSON.stringify({ type: 'HEARTBEAT' }));
+                            } catch (e) {}
+                        }
+                    }
+                }, 15000);
+            }
+
             peer.on('open', (id) => {
                 console.log('Peer connected to signaling server with ID:', id);
                 if (myPeerIdInput) myPeerIdInput.value = id;
                 if (modalPeerIdText) modalPeerIdText.textContent = id;
                 setStatus('disconnected', 'Ready');
+                startPeerHeartbeat();
 
                 // Check URL parameters for ?connect=ID
                 const urlParams = new URLSearchParams(window.location.search);
@@ -249,17 +269,32 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             peer.on('error', (err) => {
-                console.error('PeerJS Error:', err);
-                setStatus('disconnected', 'Server Offline');
+                console.warn('PeerJS Error/Warning:', err);
                 if (err.type === 'peer-unavailable') {
                     showNotification('Could not find peer with that ID. Please check the ID and try again.');
+                } else if (err.type === 'server-error' || err.type === 'socket-error' || err.type === 'socket-closed' || (err.message && err.message.includes('Lost connection'))) {
+                    console.warn('Signaling socket disconnected. Attempting auto-reconnect...');
+                    setStatus('connecting', 'Reconnecting...');
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = setTimeout(() => {
+                        if (peer && !peer.destroyed && peer.disconnected) {
+                            peer.reconnect();
+                        }
+                    }, 2500);
                 } else {
                     console.warn(`Peer warning/error: ${err.type || err.message || err}`);
                 }
             });
 
             peer.on('disconnected', () => {
-                setStatus('disconnected', 'Disconnected');
+                console.warn('Peer disconnected from signaling server, scheduling reconnect...');
+                setStatus('connecting', 'Reconnecting...');
+                clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(() => {
+                    if (peer && !peer.destroyed && peer.disconnected) {
+                        peer.reconnect();
+                    }
+                }, 2500);
             });
         } catch (e) {
             console.error('Error initializing Peer:', e);
