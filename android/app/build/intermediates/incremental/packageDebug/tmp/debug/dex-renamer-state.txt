@@ -1,9 +1,9 @@
-#Tue Oct 06 05:47:07 UTC 2026
-base.2=/workspace/call-qt/android/app/build/intermediates/dex/debug/mergeProjectDexDebug/7/classes.dex
+#Fri Oct 09 10:18:33 NPT 2026
+base.2=/public/QT-Call/android/app/build/intermediates/dex/debug/mergeProjectDexDebug/7/classes.dex
 path.2=7/classes.dex
-base.1=/workspace/call-qt/android/app/build/intermediates/dex/debug/mergeProjectDexDebug/0/classes.dex
+base.1=/public/QT-Call/android/app/build/intermediates/dex/debug/mergeProjectDexDebug/0/classes.dex
 path.1=0/classes.dex
-base.0=/workspace/call-qt/android/app/build/intermediates/dex/debug/mergeExtDexDebug/classes.dex
+base.0=/public/QT-Call/android/app/build/intermediates/dex/debug/mergeExtDexDebug/classes.dex
 renamed.2=classes3.dex
 renamed.1=classes2.dex
 renamed.0=classes.dex

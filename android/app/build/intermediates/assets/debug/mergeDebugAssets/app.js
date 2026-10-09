@@ -35,6 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyShareLinkBtn = document.getElementById('copyShareLinkBtn');
     const batteryWarningBox = document.getElementById('batteryWarningBox');
     const fixBatteryBtn = document.getElementById('fixBatteryBtn');
+    const screenShareBanner = document.getElementById('screenShareBanner');
+    const bannerStopShareBtn = document.getElementById('bannerStopShareBtn');
 
     if (window.AndroidNative) {
         if (window.AndroidNative.isBatteryOptimizationIgnored && !window.AndroidNative.isBatteryOptimizationIgnored()) {
@@ -57,6 +59,111 @@ document.addEventListener('DOMContentLoaded', () => {
     let isScreenSharing = false;
     let currentFacingMode = 'user'; // 'user' (front) or 'environment' (back)
     let qrcodeObj = null;
+
+    // --- Web Audio API Mixer for simultaneous Mic + YouTube / Screen Audio ---
+    let mixedAudioContext = null;
+    let mixedAudioDestination = null;
+
+    function mixMicrophoneAndScreenAudio(micTrack, screenAudioTrack) {
+        if (!screenAudioTrack) return micTrack;
+        if (!micTrack) return screenAudioTrack;
+
+        try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) {
+                console.warn('AudioContext not available, falling back to mic track');
+                return micTrack;
+            }
+
+            cleanupAudioMixer();
+
+            mixedAudioContext = new AudioContextClass();
+            mixedAudioDestination = mixedAudioContext.createMediaStreamDestination();
+
+            // Microphone audio input
+            const micStream = new MediaStream([micTrack]);
+            const micSource = mixedAudioContext.createMediaStreamSource(micStream);
+            const micGain = mixedAudioContext.createGain();
+            micGain.gain.value = 1.0;
+            micSource.connect(micGain);
+            micGain.connect(mixedAudioDestination);
+
+            // YouTube / Screen audio input
+            const screenAudioStream = new MediaStream([screenAudioTrack]);
+            const screenSource = mixedAudioContext.createMediaStreamSource(screenAudioStream);
+            const screenGain = mixedAudioContext.createGain();
+            screenGain.gain.value = 1.0;
+            screenSource.connect(screenGain);
+            screenGain.connect(mixedAudioDestination);
+
+            if (mixedAudioContext.state === 'suspended') {
+                mixedAudioContext.resume().catch(e => console.warn('Could not resume AudioContext:', e));
+            }
+
+            const mixedTrack = mixedAudioDestination.stream.getAudioTracks()[0];
+            console.log('Successfully mixed Microphone voice and Screen/YouTube audio!');
+            return mixedTrack || micTrack;
+        } catch (err) {
+            console.error('Audio mixing failed, using mic track:', err);
+            return micTrack;
+        }
+    }
+
+    function cleanupAudioMixer() {
+        if (mixedAudioContext) {
+            try {
+                mixedAudioContext.close();
+            } catch (e) {
+                console.warn('Error closing mixedAudioContext:', e);
+            }
+            mixedAudioContext = null;
+            mixedAudioDestination = null;
+        }
+    }
+
+    // --- Screen Share UI State Handler (Banner + Control Buttons) ---
+    function updateScreenShareUI(isSharing) {
+        if (screenShareBanner) {
+            if (isSharing) {
+                screenShareBanner.classList.remove('hidden');
+            } else {
+                screenShareBanner.classList.add('hidden');
+            }
+        }
+
+        if (shareScreenBtn) {
+            const iconSpan = shareScreenBtn.querySelector('.icon');
+            const labelSpan = shareScreenBtn.querySelector('.label');
+            if (isSharing) {
+                shareScreenBtn.classList.add('active', 'sharing-active');
+                if (iconSpan) iconSpan.textContent = '⏹️';
+                if (labelSpan) labelSpan.textContent = 'Stop Sharing';
+                shareScreenBtn.setAttribute('title', 'Turn off screen share');
+            } else {
+                shareScreenBtn.classList.remove('active', 'sharing-active');
+                if (iconSpan) iconSpan.textContent = '💻';
+                if (labelSpan) labelSpan.textContent = 'Share Screen';
+                shareScreenBtn.setAttribute('title', 'Share Screen');
+            }
+        }
+    }
+
+    // --- In-App Notification Helper (replaces window.alert for iframe compatibility) ---
+    function showNotification(message) {
+        console.warn(message);
+        const toast = document.getElementById('toastNotification');
+        const toastMsg = document.getElementById('toastMessage');
+        if (toast && toastMsg) {
+            toastMsg.textContent = message;
+            toast.classList.remove('hidden');
+            toast.style.opacity = '1';
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 4000);
+        }
+    }
 
     // --- Helper Utility: Generate Clean Short ID ---
     function generateShortId() {
@@ -92,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof Peer === 'undefined') {
             console.error('PeerJS library not loaded!');
             setStatus('disconnected', 'PeerJS Missing');
-            alert('PeerJS library failed to load. Please check your internet connection or local lib/ files.');
+            showNotification('PeerJS library failed to load. Please check your internet connection or local lib/ files.');
             return;
         }
 
@@ -109,11 +216,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 debug: 1
             });
 
+            let reconnectTimer = null;
+            let heartbeatInterval = null;
+
+            function startPeerHeartbeat() {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = setInterval(() => {
+                    if (peer && !peer.destroyed) {
+                        if (peer.disconnected) {
+                            console.log('Peer disconnected from signaling server, attempting reconnect...');
+                            peer.reconnect();
+                        } else if (peer.socket && peer.socket._socket && peer.socket._socket.readyState === WebSocket.OPEN) {
+                            try {
+                                peer.socket._socket.send(JSON.stringify({ type: 'HEARTBEAT' }));
+                            } catch (e) {}
+                        }
+                    }
+                }, 15000);
+            }
+
             peer.on('open', (id) => {
                 console.log('Peer connected to signaling server with ID:', id);
                 if (myPeerIdInput) myPeerIdInput.value = id;
                 if (modalPeerIdText) modalPeerIdText.textContent = id;
                 setStatus('disconnected', 'Ready');
+                startPeerHeartbeat();
 
                 // Check URL parameters for ?connect=ID
                 const urlParams = new URLSearchParams(window.location.search);
@@ -137,22 +264,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     showCallScreen();
                 } catch (err) {
                     console.error('Failed to answer call:', err);
-                    alert('Could not access camera/mic to answer the call.');
+                    showNotification('Could not access camera/mic to answer the call.');
                 }
             });
 
             peer.on('error', (err) => {
-                console.error('PeerJS Error:', err);
-                setStatus('disconnected', 'Server Offline');
+                console.warn('PeerJS Error/Warning:', err);
                 if (err.type === 'peer-unavailable') {
-                    alert('Could not find peer with that ID. Please check the ID and try again.');
+                    showNotification('Could not find peer with that ID. Please check the ID and try again.');
+                } else if (err.type === 'server-error' || err.type === 'socket-error' || err.type === 'socket-closed' || (err.message && err.message.includes('Lost connection'))) {
+                    console.warn('Signaling socket disconnected. Attempting auto-reconnect...');
+                    setStatus('connecting', 'Reconnecting...');
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = setTimeout(() => {
+                        if (peer && !peer.destroyed && peer.disconnected) {
+                            peer.reconnect();
+                        }
+                    }, 2500);
                 } else {
                     console.warn(`Peer warning/error: ${err.type || err.message || err}`);
                 }
             });
 
             peer.on('disconnected', () => {
-                setStatus('disconnected', 'Disconnected');
+                console.warn('Peer disconnected from signaling server, scheduling reconnect...');
+                setStatus('connecting', 'Reconnecting...');
+                clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(() => {
+                    if (peer && !peer.destroyed && peer.disconnected) {
+                        peer.reconnect();
+                    }
+                }, 2500);
             });
         } catch (e) {
             console.error('Error initializing Peer:', e);
@@ -199,7 +341,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     width: { ideal: 1280 },
                     height: { ideal: 720 }
                 },
-                audio: true
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: false, // Prevents aggressive filtering of YouTube/media audio
+                    autoGainControl: true
+                }
             };
 
             localStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -253,13 +399,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (mediaErr) {
                     console.error('Media stream error:', mediaErr);
                     setStatus('disconnected', 'Camera/Mic Blocked');
-                    alert('Could not access Camera or Microphone. If on a mobile phone, please host on HTTPS or Netlify/GitHub Pages as mobile browsers block camera access on local file:// URLs.');
+                    showNotification('Could not access Camera or Microphone. Please allow camera/microphone permissions in browser settings.');
                     return;
                 }
             }
 
             if (!peer || peer.disconnected) {
-                alert('Signaling connection is offline. Please check your internet connection and refresh.');
+                showNotification('Signaling connection is offline. Please check your internet connection and refresh.');
                 setStatus('disconnected', 'Offline');
                 return;
             }
@@ -270,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error('Error starting outgoing call:', err);
             setStatus('disconnected', 'Call Failed');
-            alert(`Call failed: ${err.message || 'Could not connect to target peer ID.'}`);
+            showNotification(`Call failed: ${err.message || 'Could not connect to target peer ID.'}`);
         }
     }
 
@@ -345,15 +491,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentCall && currentCall.peerConnection) {
             const senders = currentCall.peerConnection.getSenders();
             const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-            if (videoSender) {
+            if (videoSender && screenVideoTrack) {
                 videoSender.replaceTrack(screenVideoTrack);
+            }
+
+            // Keep speaker microphone transmitting in background
+            if (localStream) {
+                const micTrack = localStream.getAudioTracks()[0];
+                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+                if (audioSender && micTrack) {
+                    micTrack.enabled = !isMicMuted;
+                    audioSender.replaceTrack(micTrack);
+                }
             }
         }
 
         localVideo.srcObject = screenStream;
         isScreenSharing = true;
-        shareScreenBtn.classList.add('active');
-        shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
+        updateScreenShareUI(true);
     };
 
     window.onNativeScreenFrame = (dataUrl) => {
@@ -374,14 +529,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.onNativeScreenShareError = (errorMsg) => {
         console.warn('Native Screen Share Error:', errorMsg);
-        alert(errorMsg || 'Screen capture permission was denied.');
+        showNotification(errorMsg || 'Screen capture permission was denied.');
         stopScreenShare();
     };
 
     // --- Screen Sharing ---
     async function toggleScreenShare() {
         if (!currentCall && !localStream) {
-            alert('Please start or join a call before sharing.');
+            showNotification('Please start or join a call before sharing.');
             return;
         }
 
@@ -402,13 +557,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (displayMediaApi) {
                 try {
                     try {
-                        screenStream = await displayMediaApi({ video: true, audio: true });
+                        screenStream = await displayMediaApi({
+                            video: { cursor: 'always' },
+                            audio: {
+                                echoCancellation: false,
+                                noiseSuppression: false,
+                                autoGainControl: false
+                            }
+                        });
                     } catch (constraintErr) {
                         screenStream = await displayMediaApi(true);
                     }
 
                     const screenVideoTrack = screenStream.getVideoTracks()[0];
-                    const screenAudioTrack = screenStream.getAudioTracks()[0];
+                    const screenAudioTrack = screenStream.getAudioTracks()[0] || null;
 
                     screenVideoTrack.onended = () => {
                         stopScreenShare();
@@ -420,9 +582,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (videoSender && screenVideoTrack) {
                             videoSender.replaceTrack(screenVideoTrack);
                         }
-                        if (screenAudioTrack) {
-                            const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
-                            if (audioSender) {
+
+                        // Mixed Audio: transmit BOTH speaker voice AND YouTube/screen audio
+                        const micTrack = localStream ? localStream.getAudioTracks()[0] : null;
+                        const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+
+                        if (audioSender) {
+                            if (screenAudioTrack && micTrack) {
+                                const mixedTrack = mixMicrophoneAndScreenAudio(micTrack, screenAudioTrack);
+                                audioSender.replaceTrack(mixedTrack);
+                            } else if (micTrack) {
+                                micTrack.enabled = !isMicMuted;
+                                audioSender.replaceTrack(micTrack);
+                            } else if (screenAudioTrack) {
                                 audioSender.replaceTrack(screenAudioTrack);
                             }
                         }
@@ -430,8 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     localVideo.srcObject = screenStream;
                     isScreenSharing = true;
-                    shareScreenBtn.classList.add('active');
-                    shareScreenBtn.querySelector('.label').textContent = 'Stop Sharing';
+                    updateScreenShareUI(true);
                     return;
                 } catch (err) {
                     console.warn('Native screen share failed or canceled, offering mobile photo share:', err);
@@ -466,9 +637,10 @@ document.addEventListener('DOMContentLoaded', () => {
             screenStream = null;
         }
 
+        cleanupAudioMixer();
+
         isScreenSharing = false;
-        shareScreenBtn.classList.remove('active');
-        shareScreenBtn.querySelector('.label').textContent = 'Share Screen';
+        updateScreenShareUI(false);
 
         if (localStream) {
             const camTrack = localStream.getVideoTracks()[0];
@@ -479,10 +651,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const senders = currentCall.peerConnection.getSenders();
                 const videoSender = senders.find(s => s.track && s.track.kind === 'video');
                 if (videoSender && camTrack) {
+                    camTrack.enabled = !isCamOff;
                     videoSender.replaceTrack(camTrack);
                 }
                 const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
                 if (audioSender && micTrack) {
+                    micTrack.enabled = !isMicMuted;
                     audioSender.replaceTrack(micTrack);
                 }
             }
@@ -548,7 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function openQrModal() {
         const idToShare = peer ? peer.id : myPeerIdInput.value;
         if (!idToShare) {
-            alert('Peer ID not generated yet.');
+            showNotification('Peer ID not generated yet.');
             return;
         }
         
@@ -640,6 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (switchCamBtn) switchCamBtn.addEventListener('click', flipCamera);
     if (shareScreenBtn) shareScreenBtn.addEventListener('click', toggleScreenShare);
+    if (bannerStopShareBtn) bannerStopShareBtn.addEventListener('click', stopScreenShare);
     if (hangupBtn) hangupBtn.addEventListener('click', endCall);
 
     // Initialize peer

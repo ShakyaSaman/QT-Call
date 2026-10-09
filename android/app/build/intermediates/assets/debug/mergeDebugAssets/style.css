@@ -481,3 +481,86 @@ label {
         height: 52px;
     }
 }
+
+/* Screen Share Floating Indicator & Stop Option */
+.screen-share-banner {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    width: auto;
+    max-width: 92%;
+    animation: slideDown 0.3s ease-out;
+}
+
+.banner-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    box-shadow: 0 8px 30px rgba(239, 68, 68, 0.35);
+    padding: 8px 16px;
+    border-radius: 9999px;
+    color: #f8fafc;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.live-pulse-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #ef4444;
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0.7);
+    animation: livePulse 1.5s infinite;
+}
+
+@keyframes livePulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -10px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+.btn-sm {
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    border-radius: 9999px;
+    font-weight: 600;
+}
+
+/* Highlighting share screen button when active */
+.control-btn.sharing-active {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    border: 2px solid #fca5a5 !important;
+    animation: shareBtnGlow 2s infinite ease-in-out;
+}
+
+@keyframes shareBtnGlow {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 15px 3px rgba(239, 68, 68, 0.8);
+    }
+}

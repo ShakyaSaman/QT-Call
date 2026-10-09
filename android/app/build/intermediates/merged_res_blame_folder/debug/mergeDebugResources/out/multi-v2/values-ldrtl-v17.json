@@ -4,7 +4,7 @@
             "outputFile": "com.callqt.app-mergeDebugResources-30:/values-ldrtl-v17/values-ldrtl-v17.xml",
             "map": [
                 {
-                    "source": "/root/.gradle/caches/8.14.3/transforms/d63e87678b54531a3660c7f0154451af/transformed/material-1.12.0/res/values-ldrtl-v17/values-ldrtl-v17.xml",
+                    "source": "/opt/gradle-home/caches/8.14.3/transforms/d63e87678b54531a3660c7f0154451af/transformed/material-1.12.0/res/values-ldrtl-v17/values-ldrtl-v17.xml",
                     "from": {
                         "startLines": "2,3",
                         "startColumns": "4,4",
