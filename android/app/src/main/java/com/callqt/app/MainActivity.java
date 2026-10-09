@@ -10,9 +10,13 @@ import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
+import android.media.AudioFormat;
 import android.media.AudioManager;
+import android.media.AudioPlaybackCaptureConfiguration;
+import android.media.AudioRecord;
 import android.media.Image;
 import android.media.ImageReader;
+import android.media.MediaRecorder;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
@@ -21,6 +25,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.PowerManager;
+import android.os.Process;
 import android.provider.Settings;
 import android.util.Base64;
 import android.util.DisplayMetrics;
@@ -67,6 +72,16 @@ public class MainActivity extends AppCompatActivity {
     private Handler backgroundHandler;
     private boolean isCapturingScreen = false;
     private long lastFrameTime = 0;
+
+    // Native audio capture (microphone + system/playback audio) for screen share
+    private static final int AUDIO_SAMPLE_RATE = 48000;
+    private static final int AUDIO_CHUNK_BYTES = 1920; // 20ms of 16-bit mono @ 48kHz
+    private AudioRecord micAudioRecord;
+    private AudioRecord playbackAudioRecord;
+    private Thread micAudioThread;
+    private Thread playbackAudioThread;
+    private volatile boolean isCapturingAudio = false;
+    private volatile boolean nativeMicMuted = false;
 
     private AudioManager audioManager;
     private AudioFocusRequest audioFocusRequest;
@@ -242,6 +257,11 @@ public class MainActivity extends AppCompatActivity {
         public boolean isNativeAndroid() {
             return true;
         }
+
+        @JavascriptInterface
+        public void setMicMuted(boolean muted) {
+            nativeMicMuted = muted;
+        }
     }
 
     private void startScreenCapture() {
@@ -335,6 +355,10 @@ public class MainActivity extends AppCompatActivity {
                     imageReader.getSurface(), null, null
             );
 
+            // Capture microphone voice + device/system (YouTube) playback audio so both
+            // are transmitted to the remote peer while screen sharing in the background.
+            startNativeAudioCapture();
+
             runOnUiThread(() -> {
                 if (webView != null) {
                     webView.evaluateJavascript("window.onNativeScreenShareStarted && window.onNativeScreenShareStarted();", null);
@@ -347,6 +371,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void stopScreenCapture() {
         isCapturingScreen = false;
+        stopNativeAudioCapture();
         if (virtualDisplay != null) {
             virtualDisplay.release();
             virtualDisplay = null;
@@ -370,6 +395,152 @@ public class MainActivity extends AppCompatActivity {
 
         if (webView != null) {
             webView.evaluateJavascript("window.onNativeScreenShareStopped && window.onNativeScreenShareStopped();", null);
+        }
+    }
+
+    // --- Native audio capture (microphone + system/playback audio) ---
+    private void startNativeAudioCapture() {
+        if (isCapturingAudio) return;
+        isCapturingAudio = true;
+
+        startMicCapture();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && mediaProjection != null) {
+            startPlaybackCapture();
+        }
+    }
+
+    private AudioFormat buildCaptureFormat() {
+        return new AudioFormat.Builder()
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(AUDIO_SAMPLE_RATE)
+                .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                .build();
+    }
+
+    private int audioBufferSizeBytes() {
+        int minBuf = AudioRecord.getMinBufferSize(
+                AUDIO_SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+        if (minBuf <= 0) minBuf = AUDIO_CHUNK_BYTES * 8;
+        return Math.max(minBuf, AUDIO_CHUNK_BYTES * 4);
+    }
+
+    private void startMicCapture() {
+        try {
+            micAudioRecord = new AudioRecord.Builder()
+                    .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                    .setAudioFormat(buildCaptureFormat())
+                    .setBufferSizeInBytes(audioBufferSizeBytes())
+                    .build();
+            if (micAudioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
+                micAudioRecord.release();
+                micAudioRecord = null;
+                return;
+            }
+            micAudioRecord.startRecording();
+            micAudioThread = new Thread(
+                    () -> captureAudioLoop(micAudioRecord, "window.onNativeMicChunk", true),
+                    "MicCaptureThread");
+            micAudioThread.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+            micAudioRecord = null;
+        }
+    }
+
+    private void startPlaybackCapture() {
+        try {
+            AudioPlaybackCaptureConfiguration captureConfig =
+                    new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
+                            .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                            .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                            .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+                            .excludeUid(Process.myUid())
+                            .build();
+
+            playbackAudioRecord = new AudioRecord.Builder()
+                    .setAudioFormat(buildCaptureFormat())
+                    .setBufferSizeInBytes(audioBufferSizeBytes())
+                    .setAudioPlaybackCaptureConfig(captureConfig)
+                    .build();
+            if (playbackAudioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
+                playbackAudioRecord.release();
+                playbackAudioRecord = null;
+                return;
+            }
+            playbackAudioRecord.startRecording();
+            playbackAudioThread = new Thread(
+                    () -> captureAudioLoop(playbackAudioRecord, "window.onNativePlaybackChunk", false),
+                    "PlaybackCaptureThread");
+            playbackAudioThread.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+            playbackAudioRecord = null;
+        }
+    }
+
+    private void captureAudioLoop(AudioRecord record, String jsFunction, boolean micStream) {
+        if (record == null) return;
+        byte[] buffer = new byte[AUDIO_CHUNK_BYTES];
+        while (isCapturingAudio) {
+            int read;
+            try {
+                read = record.read(buffer, 0, buffer.length);
+            } catch (Exception e) {
+                break;
+            }
+            if (read <= 0) {
+                if (read < 0) break;
+                continue;
+            }
+            if (micStream && nativeMicMuted) {
+                java.util.Arrays.fill(buffer, 0, read, (byte) 0);
+            }
+            final String base64 = Base64.encodeToString(buffer, 0, read, Base64.NO_WRAP);
+            final String js = jsFunction + " && " + jsFunction + "('" + base64 + "');";
+            runOnUiThread(() -> {
+                if (isCapturingScreen && webView != null) {
+                    webView.evaluateJavascript(js, null);
+                }
+            });
+        }
+    }
+
+    private void stopNativeAudioCapture() {
+        isCapturingAudio = false;
+
+        // Stop records first to unblock any pending blocking read()
+        stopAudioRecord(micAudioRecord);
+        stopAudioRecord(playbackAudioRecord);
+
+        joinThread(micAudioThread);
+        joinThread(playbackAudioThread);
+        micAudioThread = null;
+        playbackAudioThread = null;
+        micAudioRecord = null;
+        playbackAudioRecord = null;
+    }
+
+    private void stopAudioRecord(AudioRecord record) {
+        if (record == null) return;
+        try {
+            if (record.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) {
+                record.stop();
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            record.release();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void joinThread(Thread thread) {
+        if (thread == null) return;
+        try {
+            thread.join(600);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

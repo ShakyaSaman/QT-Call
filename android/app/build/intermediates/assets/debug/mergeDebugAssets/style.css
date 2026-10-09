@@ -554,6 +554,20 @@ label {
     color: #ffffff !important;
     border: 2px solid #fca5a5 !important;
     animation: shareBtnGlow 2s infinite ease-in-out;
+    width: auto;
+    min-width: 84px;
+    height: 56px;
+    border-radius: 16px;
+    padding: 0 12px;
+    flex-direction: row;
+    gap: 6px;
+}
+
+/* Make the "Stop Sharing" text label visible while sharing */
+.control-btn.sharing-active .label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
 }
 
 @keyframes shareBtnGlow {

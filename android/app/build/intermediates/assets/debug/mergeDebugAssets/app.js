@@ -121,6 +121,162 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Native (Android) Audio Pipeline ---
+    // The native layer streams raw 16-bit mono PCM chunks for both the microphone and
+    // the device/system playback audio (e.g. YouTube). These are fed into AudioWorklet
+    // nodes which are summed into a single live MediaStreamTrack for the WebRTC call.
+    let nativeAudioContext = null;
+    let nativeAudioDestination = null;
+    let nativeMicNode = null;
+    let nativePlaybackNode = null;
+    let nativeAudioTrack = null;
+    let nativeAudioReady = false;
+
+    const PCM_WORKLET_SOURCE = [
+        'class PcmPlayerProcessor extends AudioWorkletProcessor {',
+        '    constructor() {',
+        '        super();',
+        '        this.queue = [];',
+        '        this.current = null;',
+        '        this.offset = 0;',
+        '        this.port.onmessage = (event) => {',
+        '            if (event.data) {',
+        '                this.queue.push(event.data);',
+        '                if (this.queue.length > 16) this.queue.shift();',
+        '            }',
+        '        };',
+        '    }',
+        '    process(inputs, outputs) {',
+        '        const channel = outputs[0] && outputs[0][0];',
+        '        if (!channel) return true;',
+        '        for (let i = 0; i < channel.length; i++) {',
+        '            if (!this.current || this.offset >= this.current.length) {',
+        '                this.current = this.queue.length ? this.queue.shift() : null;',
+        '                this.offset = 0;',
+        '            }',
+        '            channel[i] = this.current ? this.current[this.offset++] : 0;',
+        '        }',
+        '        return true;',
+        '    }',
+        '}',
+        "registerProcessor('pcm-player', PcmPlayerProcessor);"
+    ].join('\n');
+
+    function pcmBase64ToFloat32(base64) {
+        const binary = atob(base64);
+        const len = binary.length;
+        const sampleCount = Math.floor(len / 2);
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        const int16 = new Int16Array(bytes.buffer, 0, sampleCount);
+        const floats = new Float32Array(sampleCount);
+        for (let i = 0; i < sampleCount; i++) {
+            floats[i] = int16[i] / 32768;
+        }
+        return floats;
+    }
+
+    async function setupNativeAudioPipeline() {
+        if (nativeAudioReady) return true;
+        try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) return false;
+
+            try {
+                nativeAudioContext = new AudioContextClass({ sampleRate: 48000 });
+            } catch (rateErr) {
+                nativeAudioContext = new AudioContextClass();
+            }
+
+            if (!nativeAudioContext.audioWorklet) {
+                console.warn('AudioWorklet unavailable in this WebView.');
+                cleanupNativeAudioPipeline();
+                return false;
+            }
+
+            const blob = new Blob([PCM_WORKLET_SOURCE], { type: 'application/javascript' });
+            const workletUrl = URL.createObjectURL(blob);
+            try {
+                await nativeAudioContext.audioWorklet.addModule(workletUrl);
+            } finally {
+                URL.revokeObjectURL(workletUrl);
+            }
+
+            nativeMicNode = new AudioWorkletNode(nativeAudioContext, 'pcm-player', { outputChannelCount: [1] });
+            nativePlaybackNode = new AudioWorkletNode(nativeAudioContext, 'pcm-player', { outputChannelCount: [1] });
+
+            nativeAudioDestination = nativeAudioContext.createMediaStreamDestination();
+            nativeMicNode.connect(nativeAudioDestination);
+            nativePlaybackNode.connect(nativeAudioDestination);
+
+            nativeAudioTrack = nativeAudioDestination.stream.getAudioTracks()[0] || null;
+
+            if (nativeAudioContext.state === 'suspended') {
+                await nativeAudioContext.resume().catch(() => {});
+            }
+
+            nativeAudioReady = !!nativeAudioTrack;
+            console.log('Native audio pipeline ready:', nativeAudioReady);
+            return nativeAudioReady;
+        } catch (err) {
+            console.error('Failed to initialise native audio pipeline:', err);
+            cleanupNativeAudioPipeline();
+            return false;
+        }
+    }
+
+    function cleanupNativeAudioPipeline() {
+        if (localStream) {
+            localStream.getAudioTracks().forEach(t => { t.enabled = !isMicMuted; });
+        }
+        nativeMicNode = null;
+        nativePlaybackNode = null;
+        nativeAudioTrack = null;
+        nativeAudioDestination = null;
+        if (nativeAudioContext) {
+            try { nativeAudioContext.close(); } catch (e) {}
+            nativeAudioContext = null;
+        }
+        nativeAudioReady = false;
+    }
+
+    function pushNativeAudioChunk(node, base64) {
+        if (!node || !base64) return;
+        try {
+            const floats = pcmBase64ToFloat32(base64);
+            node.port.postMessage(floats, [floats.buffer]);
+        } catch (e) {
+            console.warn('Failed to decode native audio chunk:', e);
+        }
+    }
+
+    window.onNativeMicChunk = (base64) => pushNativeAudioChunk(nativeMicNode, base64);
+    window.onNativePlaybackChunk = (base64) => pushNativeAudioChunk(nativePlaybackNode, base64);
+
+    function attachNativeAudioToCall() {
+        if (!currentCall || !currentCall.peerConnection) return;
+        const senders = currentCall.peerConnection.getSenders();
+        const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+        if (!audioSender) return;
+
+        if (nativeAudioReady && nativeAudioTrack) {
+            // The native mixed track already contains BOTH microphone voice and system audio.
+            if (localStream) {
+                localStream.getAudioTracks().forEach(t => { t.enabled = false; });
+            }
+            audioSender.replaceTrack(nativeAudioTrack);
+            console.log('Attached native microphone + system audio to call.');
+        } else if (localStream) {
+            const micTrack = localStream.getAudioTracks()[0];
+            if (micTrack) {
+                micTrack.enabled = !isMicMuted;
+                audioSender.replaceTrack(micTrack);
+            }
+        }
+    }
+
     // --- Screen Share UI State Handler (Banner + Control Buttons) ---
     function updateScreenShareUI(isSharing) {
         if (screenShareBanner) {
@@ -494,21 +650,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (videoSender && screenVideoTrack) {
                 videoSender.replaceTrack(screenVideoTrack);
             }
-
-            // Keep speaker microphone transmitting in background
-            if (localStream) {
-                const micTrack = localStream.getAudioTracks()[0];
-                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
-                if (audioSender && micTrack) {
-                    micTrack.enabled = !isMicMuted;
-                    audioSender.replaceTrack(micTrack);
-                }
-            }
         }
 
         localVideo.srcObject = screenStream;
         isScreenSharing = true;
         updateScreenShareUI(true);
+
+        // Build the native audio pipeline (microphone + system playback audio) and
+        // then attach the combined track to the active WebRTC audio sender.
+        setupNativeAudioPipeline().then(() => {
+            if (!isScreenSharing) {
+                cleanupNativeAudioPipeline();
+                return;
+            }
+            attachNativeAudioToCall();
+        });
     };
 
     window.onNativeScreenFrame = (dataUrl) => {
@@ -545,6 +701,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // Check for Native Android Interface first
             if (window.AndroidNative && window.AndroidNative.startScreenShare) {
+                // Reflect the sharing state immediately so the "Stop Sharing" control is
+                // always available even before/while the native capture starts.
+                isScreenSharing = true;
+                updateScreenShareUI(true);
                 window.AndroidNative.startScreenShare();
                 return;
             }
@@ -638,6 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         cleanupAudioMixer();
+        cleanupNativeAudioPipeline();
 
         isScreenSharing = false;
         updateScreenShareUI(false);
@@ -791,6 +952,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (localStream) {
                 isMicMuted = !isMicMuted;
                 localStream.getAudioTracks().forEach(t => t.enabled = !isMicMuted);
+                if (window.AndroidNative && window.AndroidNative.setMicMuted) {
+                    window.AndroidNative.setMicMuted(isMicMuted);
+                }
                 toggleMicBtn.classList.toggle('muted', isMicMuted);
                 toggleMicBtn.querySelector('.icon').textContent = isMicMuted ? '🔇' : '🎙️';
                 toggleMicBtn.querySelector('.label').textContent = isMicMuted ? 'Unmute' : 'Mute';
